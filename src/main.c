@@ -9,5 +9,5 @@ int main() {
 	start_server(DEF_PORT);
 
 	/* Shut down the server. */
-	stop_server();
+	stop_server(0);
 }

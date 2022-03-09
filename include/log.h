@@ -16,8 +16,8 @@ void msg_log(char *color, char *fmt, ...);
 #define msg_err(...)  msg_log(ANSI_COLOR_RED, __VA_ARGS__)
 
 /* Print the specified message and shut down the server. */
-#define msg_die(...)          \
-	do {                      \
-		msg_err(__VA_ARGS__); \
-		stop_server();        \
+#define msg_die(...)           \
+	do {                       \
+		msg_err(__VA_ARGS__);  \
+		stop_server(1);        \
 	} while (0)
