@@ -10,11 +10,20 @@ typedef struct client {
 	int fd;                      /* Connection file descriptor */
 } client_t;
 
+/* Get a client by its ID. */
+client_t *get_client_by_id(int id);
+
 /* Add the specified client to the queue. */
 void add_client(client_t *client);
 
 /* Remove the specified client from the queue. */
 void remove_client(int id);
+
+/* Send a message to the specified client. */
+void send_msg(char *str, int id);
+
+/* Send a message to all clients. */
+void send_global_msg(char *str);
 
 /* Handle message from the specified client. */
 void *handle_client(void *arg);

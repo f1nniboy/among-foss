@@ -13,6 +13,18 @@
 #include "util.h"
 #include "log.h"
 
+/* Get a client by its ID. */
+client_t *get_client_by_id(int id) {
+	for(int i = 0; i < NUM_CLIENTS; ++i) {
+		if(clients[i] && clients[i]->id == id) {
+			return clients[i];
+			break;
+		}
+	}
+
+	return NULL;
+}
+
 /* Add the specified client to the queue. */
 void add_client(client_t *client) {
 	pthread_mutex_lock(&clients_mutex);
@@ -43,6 +55,27 @@ void remove_client(int id) {
 	}
 
 	pthread_mutex_unlock(&clients_mutex);
+}
+
+/* Send a message to the specified client. */
+void send_msg(char *str, int id) {
+	client_t *client = get_client_by_id(id);
+
+	/* Make sure that the client is still connected. */
+	if(client != NULL) {
+		/* Try to write to the client's file descriptor. */
+		if(write(client->fd, str, strlen(str)) < 0 || write(client->fd, "\n", 1) < 0)
+			msg_err("Failed to write to file descriptor of client #%d.", client->id);
+	}
+}
+
+/* Send a message to all clients. */
+void send_global_msg(char *str) {
+	for(int i = 0; i < NUM_CLIENTS; ++i) {
+		/* Make sure that the client slot is taken. */
+		if(clients[i])
+			send_msg(str, clients[i]->id);
+	}
 }
 
 /* Handle message from the specified client. */
