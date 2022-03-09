@@ -20,6 +20,9 @@
 client_t *clients[NUM_CLIENTS];
 pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+/* Amount of connected clients */
+int client_count = 0;
+
 /* Last used user ID */
 int last_id = 0;
 

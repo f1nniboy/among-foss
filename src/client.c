@@ -85,7 +85,13 @@ void *handle_client(void *arg) {
 	int read_len;
 
 	client_t *client = (client_t *) arg;
+
+	/* Check whether the server is full. */
+	if(client_count + 1 > NUM_CLIENTS)
+		goto disconnect;
+
 	msg_info("Client #%d has connected.", client->id);
+	client_count++;
 
 	/* Receive messages from the client. */
 	while((read_len = read(client->fd, buff_in, sizeof(buff_in) - 1)) > 0) {
@@ -102,9 +108,13 @@ void *handle_client(void *arg) {
 		msg_warn("%d -> \"%s\"", client->id, buff_in);
 	}
 
+disconnect:
 	/* Close the connection. */
 	msg_info("Client #%d has disconnected.", client->id);
 	close(client->fd);
+	client_count--;
+
+	msg_warn("%d", client_count);
 
 	/* Delete the client from the queue and memory. */
 	remove_client(client->id);

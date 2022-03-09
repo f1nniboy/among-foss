@@ -4,6 +4,9 @@
 extern client_t *clients[NUM_CLIENTS];
 extern pthread_mutex_t clients_mutex;
 
+/* Amount of connected clients */
+extern int client_count;
+
 /* Last used user ID */
 extern int last_id;
 
