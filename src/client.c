@@ -1,15 +1,7 @@
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <pthread.h>
-#include <string.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-
 #include "constant.h"
 #include "client.h"
 #include "server.h"
+#include "packet.h"
 #include "util.h"
 #include "log.h"
 
@@ -26,7 +18,7 @@ client_t *get_client_by_id(int id) {
 }
 
 /* Add the specified client to the queue. */
-void add_client(client_t *client) {
+void add_client_to_queue(client_t *client) {
 	pthread_mutex_lock(&clients_mutex);
 
 	/* Find a free client slot. */
@@ -42,7 +34,7 @@ void add_client(client_t *client) {
 }
 
 /* Remove the specified client from the queue. */
-void remove_client(int id) {
+void remove_client_from_queue(int id) {
 	pthread_mutex_lock(&clients_mutex);
 
 	/* Find a the taken client slot. */
@@ -55,6 +47,22 @@ void remove_client(int id) {
 	}
 
 	pthread_mutex_unlock(&clients_mutex);
+}
+
+/* Disconnect the specified client. */
+void disconnect_client(int id) {
+	client_t *client = get_client_by_id(id);
+
+	if(client != NULL && client->connected) {
+		/* Close the connection. */
+		client->connected = 0;
+		close(client->fd);
+		client_count--;
+
+		/* Remove the client from the queue and memory. */
+		remove_client_from_queue(client->id);
+		free(client);
+	}
 }
 
 /* Send a message to the specified client. */
@@ -80,8 +88,7 @@ void send_global_msg(char *str) {
 
 /* Handle message from the specified client. */
 void *handle_client(void *arg) {
-	char buff_in[BUFFER_SIZE];
-	char buff_out[BUFFER_SIZE];
+	char buff[BUFFER_SIZE];
 	int read_len;
 
 	client_t *client = (client_t *) arg;
@@ -90,35 +97,32 @@ void *handle_client(void *arg) {
 	if(client_count + 1 > NUM_CLIENTS)
 		goto disconnect;
 
-	msg_info("Client #%d has connected.", client->id);
+	msg_info("Client #%d [%s] has connected.", client->id, inet_ntoa(client->addr.sin_addr));
 	client_count++;
 
 	/* Receive messages from the client. */
-	while((read_len = read(client->fd, buff_in, sizeof(buff_in) - 1)) > 0) {
-		buff_in[read_len] = '\0';
-		buff_out[0] = '\0';
+	while((read_len = read(client->fd, buff, sizeof(buff) - 1)) > 0 && client->connected) {
+		/* Terminate the read string. */
+		buff[read_len] = '\0';
 
 		/* Remove the newline from the client's input. */
-		strip_newline(buff_in);
+		strip_newline(buff);
 
 		/* Make sure that the buffer is not empty. */
-		if (!strlen(buff_in))
+		if(!strlen(buff))
 			continue;
 
-		msg_warn("%d -> \"%s\"", client->id, buff_in);
+		/* Print the client's message to the console. */
+		msg_warn("#%d -> \"%s\"", client->id, buff);
+
+		/* Try to parse the message as a packet. */
+		parse_packet(client->id, buff);
 	}
 
 disconnect:
 	/* Close the connection. */
-	msg_info("Client #%d has disconnected.", client->id);
-	close(client->fd);
-	client_count--;
-
-	msg_warn("%d", client_count);
-
-	/* Delete the client from the queue and memory. */
-	remove_client(client->id);
-	free(client);
+	msg_info("Client #%d [%s] has disconnected.", client->id, inet_ntoa(client->addr.sin_addr));
+	disconnect_client(client->id);
 
 	/* Yield the thread. */
 	pthread_detach(pthread_self());

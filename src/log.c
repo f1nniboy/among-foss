@@ -1,6 +1,3 @@
-#include <stdarg.h>
-#include <stdio.h>
-
 #include "log.h"
 
 /* Log a message to the console with the specified color. */

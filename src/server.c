@@ -1,16 +1,3 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <pthread.h>
-#include <sys/types.h>
-#include <signal.h>
-
 #include "constant.h"
 #include "client.h"
 #include "server.h"
@@ -47,11 +34,18 @@ void start_server(uint16_t port) {
 	if (bind(listen_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0)
 		msg_die("Failed to bind socket.");
 
+	/* Set the socket options. */
+	int true = 1; if(setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &true, sizeof(true)) < 0)
+		msg_die("Failed to set socket options.");
+
 	/* Listen on the socket. */
 	if (listen(listen_fd, 10) < 0)
 		msg_die("Failed to listen on socket.");
 	
 	msg_info("Started the server on port '%d'.", port);
+
+	/* Set up the signals. */
+	signal(SIGINT, stop_server);
 
 	/* Accept any incoming connections. */
 	while(1) {
@@ -66,7 +60,8 @@ void start_server(uint16_t port) {
 		client->id = last_id++;
 
 		/* Add the client to the queue and create a new thread for the handling of messages. */
-		add_client(client);
+		client->connected = true;
+		add_client_to_queue(client);
 		pthread_create(&tid, NULL, &handle_client, (void *) client);
 
 		/* Reduce the CPU usage. */
@@ -76,6 +71,6 @@ void start_server(uint16_t port) {
 
 /* Shut down the current server. */
 void stop_server(int code) {
-	msg_warn("Shutting down the server.");
-	exit(code);
+	msg_info("Shutting down the server.");
+	exit(code > 1 ? 0 : code);
 }

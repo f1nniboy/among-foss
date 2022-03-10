@@ -1,5 +1,18 @@
 #pragma once
 
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <signal.h>
+
 /* List of connected clients */
 extern client_t *clients[NUM_CLIENTS];
 extern pthread_mutex_t clients_mutex;

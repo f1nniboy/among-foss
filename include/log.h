@@ -1,5 +1,8 @@
 #pragma once
 
+#include <stdarg.h>
+#include <stdio.h>
+
 #define ANSI_COLOR_BLUE   "\x1b[94m"
 #define ANSI_COLOR_YELLOW "\x1b[93m"
 #define ANSI_COLOR_RED    "\x1b[91m"
