@@ -4,12 +4,42 @@
 #include "client.h"
 #include "log.h"
 
-handler_t handlers[256] = {
-	[PACKET_INFO] = packet_info
+handler_t handlers[PACKET_COUNT] = {
+	[PACKET_NAME] = packet_name
 };
 
-void packet_info(int sender_id, struct json_object *args) {
+/* When a client sends the server their name */
+void packet_name(int sender_id, struct json_object *args) {
 	msg_info("Example");
+	send_basic_packet(sender_id, PACKET_NAME, 123);
+}
+
+/* Send a packet to the specified client ID. */
+void send_packet(int id, int type, int status, struct json_object *args) {
+	struct json_object *object, *tmp;
+
+	/* Create a new JSON object. */
+	object = json_object_new_object();
+
+	/* Create the type integer. */
+	tmp = json_object_new_int(type);
+	json_object_object_add(object, "type", tmp);
+
+	/* Create the status integer. */
+	tmp = json_object_new_int(status);
+	json_object_object_add(object, "status", tmp);
+
+	if (args != NULL)
+		json_object_object_add(object, "arguments", args);
+
+	/* Convert the JSON object into a string. */
+	char *str = (char *) json_object_to_json_string_ext(object, JSON_C_TO_STRING_PLAIN);
+
+	/* Send the packet. */
+	send_msg(str, id);
+
+	/* Free the JSON object after using it. */
+	json_object_put(object);
 }
 
 /* Handle a packet sent by the specified client. */
@@ -19,9 +49,16 @@ int handle_packet(int id, int type, struct json_object *args) {
 	/* Make sure that the packet type is not out of bounds. */
 	if(type < 0 || type > PACKET_COUNT - 1)
 		return 0;
-	
-	/* Run the packet handling function. */
+
 	handler_t handler = handlers[type];
+
+	/* Make sure that a handler is actually registered for this packet. */
+	if(handler == NULL) {
+		msg_warn("No packet handler registered for packet #%d.", id);
+		return 0;
+	}
+
+	/* Run the packet handling function. */
 	handler(id, args);
 
 	return 1;

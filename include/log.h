@@ -23,4 +23,4 @@ void msg_log(char *color, char *fmt, ...);
 	do {                       \
 		msg_err(__VA_ARGS__);  \
 		stop_server(1);        \
-	} while (0)
+	} while(0)
