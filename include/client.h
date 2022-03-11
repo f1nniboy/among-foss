@@ -9,13 +9,27 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+/* Client stages */
+enum client_stage {
+	/* The client is still configuring their name */
+	CLIENT_STAGE_NAME,
+	
+	/* The client is waiting in the lobby for the game to start */
+	CLIENT_STAGE_LOBBY,
+
+	/* The client is playing the game */
+	CLIENT_STAGE_GAME
+};
+
 /* Client structure */
 typedef struct client {
-	char name[NAME_LEN_MAX + 1]; /* Name of the client */
 	struct sockaddr_in addr;     /* Client remote address */
 	int connected;               /* Whether the connection is active */
 	int id;                      /* Unique client identifier */
 	int fd;                      /* Connection file descriptor */
+
+	char name[NAME_LEN_MAX + 1]; /* Name of the client */
+	enum client_stage stage;     /* Current stage of the client */
 } client_t;
 
 /* Get a client by its ID. */

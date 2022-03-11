@@ -97,8 +97,11 @@ void *handle_client(void *arg) {
 	if(client_count + 1 > NUM_CLIENTS)
 		goto disconnect;
 
-	msg_info("Client #%d [%s] has connected.", client->id, inet_ntoa(client->addr.sin_addr));
+	msg_info("Client #%d has connected.", client->id);
 	client_count++;
+
+	/* Set the client's stage. */
+	client->stage = CLIENT_STAGE_NAME;
 
 	/* Receive messages from the client. */
 	while((read_len = read(client->fd, buff, sizeof(buff) - 1)) > 0 && client->connected) {
@@ -121,7 +124,7 @@ void *handle_client(void *arg) {
 
 disconnect:
 	/* Close the connection. */
-	msg_info("Client #%d [%s] has disconnected.", client->id, inet_ntoa(client->addr.sin_addr));
+	msg_info("Client #%d has disconnected.", client->id);
 	disconnect_client(client->id);
 
 	/* Yield the thread. */

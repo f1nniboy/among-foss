@@ -1,5 +1,7 @@
 #pragma once
 
+#include "constant.h"
+#include "client.h"
 #include "json.h"
 
 enum PACKET_ID {
@@ -14,6 +16,16 @@ enum PACKET_ID {
 
 	/* Packet counter; do not remove */
 	PACKET_COUNT
+};
+
+enum PACKET_STATUS {
+	/* General */
+	PACKET_STATUS_OK,
+	PACKET_STATUS_INVALID,
+	PACKET_STATUS_AGAIN,
+
+	/* Name */
+	PACKET_STATUS_WRONG_LENGTH
 };
 
 /* Send a packet to the specified client ID. */
@@ -49,10 +61,10 @@ void send_packet(int id, int type, int status, struct json_object *args);
 #define get_int_arg(var, key) get_arg(int, var, key, json_object_get_int)
 
 /* Function definition for handlers */
-typedef void (*handler_t)(int, struct json_object *);
+typedef void (*handler_t)(client_t *, struct json_object *);
 
 /* Handlers */
-void packet_name(int sender_id, struct json_object *args);
+void packet_name(client_t *client, struct json_object *args);
 
 /* Handle a packet sent by the specified client.
    Returns whether the packet was handled successfully. */

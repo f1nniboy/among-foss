@@ -10,9 +10,6 @@ pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 /* Amount of connected clients */
 int client_count = 0;
 
-/* Last used user ID */
-int last_id = 0;
-
 /* Start a server on the specified port. */
 void start_server(uint16_t port) {
 	int listen_fd = 0, conn_fd = 0;
@@ -57,7 +54,7 @@ void start_server(uint16_t port) {
 		/* Client settings */
 		client->addr = client_addr;
 		client->fd = conn_fd;
-		client->id = last_id++;
+		client->id = client_count + 1;
 
 		/* Add the client to the queue and create a new thread for the handling of messages. */
 		client->connected = true;

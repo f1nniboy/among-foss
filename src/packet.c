@@ -1,6 +1,7 @@
 #include "json.h"
 #include "packet.h"
 #include "constant.h"
+#include "server.h"
 #include "client.h"
 #include "log.h"
 
@@ -9,9 +10,27 @@ handler_t handlers[PACKET_COUNT] = {
 };
 
 /* When a client sends the server their name */
-void packet_name(int sender_id, struct json_object *args) {
-	msg_info("Example");
-	send_basic_packet(sender_id, PACKET_NAME, 123);
+void packet_name(client_t *client, struct json_object *args) {
+	/* Make sure that the client hasn't set their name already. */
+	if(client->stage != CLIENT_STAGE_NAME)
+		return send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_AGAIN);
+
+	char *name; get_string_arg(name, "name");
+	
+	/* Make sure that the client specified a valid name. */
+	if(name == NULL)
+		return send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_INVALID);
+
+	/* Make sure that the name is in bounds of the limits. */
+	int len = strlen(name); if(len > NAME_LEN_MAX || len < NAME_LEN_MIN)
+		return send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_WRONG_LENGTH);
+
+	/* Update the client's name and stage. */
+	client->stage = CLIENT_STAGE_LOBBY;
+	strcpy(client->name, name);
+
+	msg_info("Client #%d is now known as '%s'.", client->id, client->name);
+	send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_OK);
 }
 
 /* Send a packet to the specified client ID. */
@@ -59,7 +78,7 @@ int handle_packet(int id, int type, struct json_object *args) {
 	}
 
 	/* Run the packet handling function. */
-	handler(id, args);
+	handler(client, args);
 
 	return 1;
 }
