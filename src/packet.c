@@ -6,7 +6,8 @@
 #include "log.h"
 
 handler_t handlers[PACKET_COUNT] = {
-	[PACKET_NAME] = packet_name
+	[PACKET_NAME] = packet_name,
+	[PACKET_CLIENTS] = packet_clients
 };
 
 /* When a client sends the server their name */
@@ -31,6 +32,38 @@ void packet_name(client_t *client, struct json_object *args) {
 
 	msg_info("Client #%d is now known as '%s'.", client->id, client->name);
 	send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_OK);
+
+	/* Notify other clients, that the client has joined the game. */
+	broadcast_client_status(client->id, PACKET_CLIENT_INFO_JOIN);
+}
+
+/* When a client requests the client list from the server */
+void packet_clients(client_t *client, struct json_object *args) {
+	struct json_object *client_array = json_object_new_array();
+
+	/* Loop through all clients. */
+	for(int id = 0; id < NUM_CLIENTS; ++id) {
+		client_t *cli = get_client_by_id(id);
+		if(cli == NULL) break;
+
+		/* Don't add the requesting client to the client list. */
+		if(client->id == id)
+			continue;
+
+		/* Don't add clients, who haven't chosen their name yet, to the client list. */
+		if(cli->stage == CLIENT_STAGE_NAME)
+			continue;
+
+		struct json_object *client_object = json_object_new_object();
+
+		/* Add the client's information to the object. */
+		json_object_object_add(client_object, "id", json_object_new_int(id));
+		json_object_object_add(client_object, "name", json_object_new_string(cli->name));
+
+		json_object_array_add(client_array, client_object);
+	}
+
+	send_packet(client->id, PACKET_CLIENTS, PACKET_STATUS_OK, client_array);
 }
 
 /* Send a packet to the specified client ID. */
@@ -55,7 +88,10 @@ void send_packet(int id, int type, int status, struct json_object *args) {
 	char *str = (char *) json_object_to_json_string_ext(object, JSON_C_TO_STRING_PLAIN);
 
 	/* Send the packet. */
-	send_msg(str, id);
+	if(id == -1)
+		send_global_msg(str);
+	else
+		send_msg(str, id);
 
 	/* Free the JSON object after using it. */
 	json_object_put(object);
@@ -73,7 +109,7 @@ int handle_packet(int id, int type, struct json_object *args) {
 
 	/* Make sure that a handler is actually registered for this packet. */
 	if(handler == NULL) {
-		msg_warn("No packet handler registered for packet #%d.", id);
+		msg_warn("No packet handler registered for packet #%d.", type);
 		return 0;
 	}
 
@@ -91,8 +127,8 @@ void parse_packet(int id, char *str) {
 	struct json_object *args_object = json_object_object_get(parsed_input, "arguments");
 
 	/* Validate the JSON and try to handle the packet. */
-	if (parsed_input == NULL || args_object == NULL || packet_type == -1 || json_object_get_type(parsed_input) != json_type_object
-		|| handle_packet(id, packet_type, parsed_input) == 0)
+	if (parsed_input == NULL || packet_type == -1 || json_object_get_type(parsed_input) != json_type_object
+		|| handle_packet(id, packet_type, args_object) == 0)
 			msg_warn("Client #%d sent an invalid packet.", id);
 
 	/* Free the parsed input. */

@@ -3,6 +3,7 @@
 /* General */
 #define VERSION  "dev" /* Current server version */
 #define DEF_PORT 1234  /* Default server port */
+#define DEBUG    1     /* Whether to print debug messages */
 
 /* Player */
 #define NUM_CLIENTS  10   /* Maximum amount of clients connected at a time */

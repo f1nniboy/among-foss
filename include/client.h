@@ -41,6 +41,9 @@ void add_client_to_queue(client_t *client);
 /* Remove the specified client from the queue. */
 void remove_client_from_queue(int id);
 
+/* Broadcast the new client status to other clients. */
+void broadcast_client_status(int id, int status);
+
 /* Disconnect the specified client. */
 void disconnect_client(int id);
 

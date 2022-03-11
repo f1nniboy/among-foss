@@ -20,6 +20,9 @@ extern pthread_mutex_t clients_mutex;
 /* Amount of connected clients */
 extern int client_count;
 
+/* Last used client ID */
+extern int last_id;
+
 /* Start a server on the specified port. */
 void start_server(uint16_t port);
 

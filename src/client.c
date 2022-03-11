@@ -7,14 +7,7 @@
 
 /* Get a client by its ID. */
 client_t *get_client_by_id(int id) {
-	for(int i = 0; i < NUM_CLIENTS; ++i) {
-		if(clients[i] && clients[i]->id == id) {
-			return clients[i];
-			break;
-		}
-	}
-
-	return NULL;
+	return clients[id];
 }
 
 /* Add the specified client to the queue. */
@@ -49,6 +42,24 @@ void remove_client_from_queue(int id) {
 	pthread_mutex_unlock(&clients_mutex);
 }
 
+/* Broadcast the new client status to other clients. */
+void broadcast_client_status(int id, int status) {
+	client_t *client = get_client_by_id(id);
+	if(client == NULL) return;
+
+	/* Only broadcast the status for players who have set their name. */
+	if(client->stage == CLIENT_STAGE_NAME)
+		return;
+
+	struct json_object *client_object = json_object_new_object();
+
+	/* Add the client's information to the object. */
+	json_object_object_add(client_object, "id", json_object_new_int(client->id));
+	json_object_object_add(client_object, "name", json_object_new_string(client->name));
+
+	send_packet(-1, PACKET_CLIENT_INFO, status, client_object);
+}
+
 /* Disconnect the specified client. */
 void disconnect_client(int id) {
 	client_t *client = get_client_by_id(id);
@@ -59,8 +70,11 @@ void disconnect_client(int id) {
 		close(client->fd);
 		client_count--;
 
+		/* Broadcast the new client status. */
+		broadcast_client_status(id, PACKET_CLIENT_INFO_LEAVE);
+
 		/* Remove the client from the queue and memory. */
-		remove_client_from_queue(client->id);
+		remove_client_from_queue(id);
 		free(client);
 	}
 }
@@ -70,7 +84,7 @@ void send_msg(char *str, int id) {
 	client_t *client = get_client_by_id(id);
 
 	/* Make sure that the client is still connected. */
-	if(client != NULL) {
+	if(client != NULL && client->connected) {
 		/* Try to write to the client's file descriptor. */
 		if(write(client->fd, str, strlen(str)) < 0 || write(client->fd, "\n", 1) < 0)
 			msg_err("Failed to write to file descriptor of client #%d.", client->id);
@@ -81,7 +95,7 @@ void send_msg(char *str, int id) {
 void send_global_msg(char *str) {
 	for(int i = 0; i < NUM_CLIENTS; ++i) {
 		/* Make sure that the client slot is taken. */
-		if(clients[i])
+		if(clients[i] && clients[i]->stage != CLIENT_STAGE_NAME)
 			send_msg(str, clients[i]->id);
 	}
 }
@@ -92,6 +106,7 @@ void *handle_client(void *arg) {
 	int read_len;
 
 	client_t *client = (client_t *) arg;
+	client->connected = 1;
 
 	/* Check whether the server is full. */
 	if(client_count + 1 > NUM_CLIENTS)
@@ -115,8 +130,10 @@ void *handle_client(void *arg) {
 		if(!strlen(buff))
 			continue;
 
-		/* Print the client's message to the console. */
-		msg_warn("#%d -> \"%s\"", client->id, buff);
+		#ifdef DEBUG
+			/* Print the client's message to the console. */
+			msg_warn("#%d -> \"%s\"", client->id, buff);
+		#endif
 
 		/* Try to parse the message as a packet. */
 		parse_packet(client->id, buff);

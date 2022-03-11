@@ -7,6 +7,9 @@
 enum PACKET_ID {
 	/* Outgoing, sent to the client */
 	PACKET_INFO,
+	PACKET_CLIENTS,
+	PACKET_CLIENT_INFO,
+	PACKET_GAME_STATUS,
 
 	/* Incoming, sent from the client */
 	/* - */
@@ -16,6 +19,16 @@ enum PACKET_ID {
 
 	/* Packet counter; do not remove */
 	PACKET_COUNT
+};
+
+enum packet_client_info {
+	PACKET_CLIENT_INFO_JOIN,
+	PACKET_CLIENT_INFO_LEAVE
+};
+
+enum packet_game_status {
+	PACKET_GAME_STATUS_FULL,
+	PACKET_GAME_STATUS_START
 };
 
 enum PACKET_STATUS {
@@ -46,14 +59,10 @@ void send_packet(int id, int type, int status, struct json_object *args);
 #define send_packet_with_bool_pair(id, type, status, key, value) send_packet_with_pair(id, type, status, key, value, json_object_new_boolean)
 #define send_packet_with_int_pair(id, type, status, key, value) send_packet_with_pair(id, type, status, key, value, json_object_new_int)
 
-#define get_arg(type, var, key, func)                        \
-	do {                                                     \
-		struct json_object *temp, *temp2;                    \
-                                                             \
-		json_object_object_get_ex(args, "arguments", &temp); \
-		json_object_object_get_ex(temp, key, &temp2);        \
-                                                             \
-		var = (type) func(temp2);                            \
+#define get_arg(type, var, key, func)                                 \
+	do {                                                              \
+		struct json_object *temp = json_object_object_get(args, key); \
+		var = (type) func(temp);                                     \
 	} while(0)
 
 #define get_string_arg(var, key) get_arg(char *, var, key, json_object_get_string)
@@ -65,6 +74,7 @@ typedef void (*handler_t)(client_t *, struct json_object *);
 
 /* Handlers */
 void packet_name(client_t *client, struct json_object *args);
+void packet_clients(client_t *client, struct json_object *args);
 
 /* Handle a packet sent by the specified client.
    Returns whether the packet was handled successfully. */
