@@ -7,7 +7,13 @@
 
 /* Get a client by its ID. */
 client_t *get_client_by_id(int id) {
-	return clients[id];
+	/* Find a free client slot. */
+	for(int i = 0; i < NUM_CLIENTS; ++i)
+		/* Check whether the current client slot is free. */
+		if(clients[i] && clients[i]->id == id)
+			return clients[i];
+
+	return NULL;
 }
 
 /* Add the specified client to the queue. */
@@ -57,7 +63,7 @@ void broadcast_client_status(int id, int status) {
 	json_object_object_add(client_object, "id", json_object_new_int(client->id));
 	json_object_object_add(client_object, "name", json_object_new_string(client->name));
 
-	send_packet(-1, PACKET_CLIENT_INFO, status, client_object);
+	send_packet(-id, PACKET_CLIENT_INFO, status, client_object);
 }
 
 /* Disconnect the specified client. */
@@ -91,11 +97,11 @@ void send_msg(char *str, int id) {
 	}
 }
 
-/* Send a message to all clients. */
-void send_global_msg(char *str) {
+/* Send a message to all clients except the sender. */
+void send_global_msg(char *str, int sender_id) {
 	for(int i = 0; i < NUM_CLIENTS; ++i) {
 		/* Make sure that the client slot is taken. */
-		if(clients[i] && clients[i]->stage != CLIENT_STAGE_NAME)
+		if(clients[i] && clients[i]->stage != CLIENT_STAGE_NAME && clients[i]->id != sender_id)
 			send_msg(str, clients[i]->id);
 	}
 }
@@ -129,11 +135,6 @@ void *handle_client(void *arg) {
 		/* Make sure that the buffer is not empty. */
 		if(!strlen(buff))
 			continue;
-
-		#ifdef DEBUG
-			/* Print the client's message to the console. */
-			msg_warn("#%d -> \"%s\"", client->id, buff);
-		#endif
 
 		/* Try to parse the message as a packet. */
 		parse_packet(client->id, buff);

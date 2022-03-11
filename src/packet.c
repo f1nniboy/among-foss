@@ -1,3 +1,6 @@
+#include <ctype.h>
+#include <stdio.h>
+
 #include "json.h"
 #include "packet.h"
 #include "constant.h"
@@ -6,10 +9,12 @@
 #include "game.h"
 #include "log.h"
 
+
 handler_t handlers[PACKET_COUNT] = {
 	[PACKET_NAME] = packet_name,
 	[PACKET_CLIENTS] = packet_clients,
-	[PACKET_COMMAND] = packet_command
+	[PACKET_COMMAND] = packet_command,
+	[PACKET_CHAT] = packet_chat
 };
 
 /* When a client sends the server their name */
@@ -29,6 +34,11 @@ void packet_name(client_t *client, struct json_object *args) {
 	int len = strlen(name); if(len > NAME_LEN_MAX || len < NAME_LEN_MIN)
 		return send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_WRONG_LENGTH);
 
+	/* Validate the name. */
+	for(int i = 0; i < strlen(name); i++)
+		if(!isprint(name[i]))
+			return send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_INVALID);
+
 	/* Update the client's name and stage. */
 	client->stage = CLIENT_STAGE_LOBBY;
 	strcpy(client->name, name);
@@ -47,7 +57,7 @@ void packet_clients(client_t *client, struct json_object *args) {
 	/* Loop through all clients. */
 	for(int id = 0; id < NUM_CLIENTS; ++id) {
 		client_t *cli = get_client_by_id(id);
-		if(cli == NULL) break;
+		if(cli == NULL) continue;
 
 		/* Don't add the requesting client to the client list. */
 		if(client->id == id)
@@ -89,22 +99,45 @@ void packet_command(client_t *client, struct json_object *args) {
 	send_basic_packet(client->id, PACKET_COMMAND, PACKET_STATUS_OK);
 }
 
+/* When a client sends a chat message */
+void packet_chat(client_t *client, struct json_object *args) {
+	/* Make sure that the client is in the lobby stage. */
+	if(state->stage != CLIENT_STAGE_LOBBY)
+		return send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_INVALID);
+
+	/* Chosen chat message */
+	char *content; get_string_arg(content, "content");
+	
+	/* Make sure that the client specified a valid message. */
+	if(content == NULL)
+		return send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_INVALID);
+
+	/* Validate the message. */
+	for(int i = 0; i < strlen(content); i++)
+		if(!isprint(content[i]))
+			return send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_INVALID);
+			
+	send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_OK);
+	msg_warn(ANSI_COLOR_BOLD "%s" ANSI_COLOR_RESET " [#%d] -> %s", client->name, client->id, content);
+
+	/* Send the chat message to all other clients. */
+	send_packet_with_string_pair(-client->id, PACKET_CHAT, PACKET_STATUS_OK, "content", content);
+}
+
 
 
 /* Send a packet to the specified client ID. */
 void send_packet(int id, int type, int status, struct json_object *args) {
-	struct json_object *object, *tmp;
+	struct json_object *object;
 
 	/* Create a new JSON object. */
 	object = json_object_new_object();
 
 	/* Create the type integer. */
-	tmp = json_object_new_int(type);
-	json_object_object_add(object, "type", tmp);
+	json_object_object_add(object, "type", json_object_new_int(type));
 
 	/* Create the status integer. */
-	tmp = json_object_new_int(status);
-	json_object_object_add(object, "status", tmp);
+	json_object_object_add(object, "status", json_object_new_int(status));
 
 	if (args != NULL)
 		json_object_object_add(object, "arguments", args);
@@ -113,8 +146,8 @@ void send_packet(int id, int type, int status, struct json_object *args) {
 	char *str = (char *) json_object_to_json_string_ext(object, JSON_C_TO_STRING_PLAIN);
 
 	/* Send the packet. */
-	if(id == -1)
-		send_global_msg(str);
+	if(id < 0)
+		send_global_msg(str, id * -1);
 	else
 		send_msg(str, id);
 

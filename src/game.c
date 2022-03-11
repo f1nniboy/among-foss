@@ -15,6 +15,9 @@ void init_game_state() {
 
 	/* Initialize the game state. */
 	state = (game_t *) malloc(sizeof(game_t));
+
+	/* Set the default values. */
+	state->stage = CLIENT_STAGE_LOBBY;
 }
 
 /* Start the game. */

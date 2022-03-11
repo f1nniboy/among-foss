@@ -17,6 +17,7 @@ enum PACKET_ID {
 	/* Both, sent from and to the client */
 	PACKET_COMMAND,
 	PACKET_NAME,
+	PACKET_CHAT,
 
 	/* Packet counter; do not remove */
 	PACKET_COUNT
@@ -56,7 +57,7 @@ void send_packet(int id, int type, int status, struct json_object *args);
 		struct json_object *object = func(value);                 \
                                                                   \
 		json_object_object_add(args, key, object);                \
-		send_packet(id, type, status, arguments);                 \
+		send_packet(id, type, status, args);                      \
 	} while(0)
 
 #define send_packet_with_string_pair(id, type, status, key, value) send_packet_with_pair(id, type, status, key, value, json_object_new_string)
@@ -81,6 +82,7 @@ typedef void (*handler_t)(client_t *, struct json_object *);
 void packet_name(client_t *client, struct json_object *args);
 void packet_clients(client_t *client, struct json_object *args);
 void packet_command(client_t *client, struct json_object *args);
+void packet_chat(client_t *client, struct json_object *args);
 
 /* Handle a packet sent by the specified client.
    Returns whether the packet was handled successfully. */

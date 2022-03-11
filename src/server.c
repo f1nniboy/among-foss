@@ -12,7 +12,7 @@ pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 int client_count = 0;
 
 /* Last used client ID */
-int last_id = 0;
+int last_id = 1;
 
 /* Start a server on the specified port. */
 void start_server(uint16_t port) {
@@ -43,7 +43,7 @@ void start_server(uint16_t port) {
 	if (listen(listen_fd, 10) < 0)
 		msg_die("Failed to listen on socket.");
 	
-	msg_info("Started the server on port '%d'.", port);
+	msg_info("Started the server on port " ANSI_COLOR_BOLD "%d" ANSI_COLOR_RESET ".", port);
 
 	/* Initialize the game state. */
 	init_game_state();

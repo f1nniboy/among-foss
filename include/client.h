@@ -64,8 +64,8 @@ void disconnect_client(int id);
 /* Send a message to the specified client. */
 void send_msg(char *str, int id);
 
-/* Send a message to all clients. */
-void send_global_msg(char *str);
+/* Send a message to all clients except the sender. */
+void send_global_msg(char *str, int sender_id);
 
 /* Handle message from the specified client. */
 void *handle_client(void *arg);
