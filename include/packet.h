@@ -15,6 +15,7 @@ enum PACKET_ID {
 	/* - */
 
 	/* Both, sent from and to the client */
+	PACKET_COMMAND,
 	PACKET_NAME,
 
 	/* Packet counter; do not remove */
@@ -28,7 +29,10 @@ enum packet_client_info {
 
 enum packet_game_status {
 	PACKET_GAME_STATUS_FULL,
-	PACKET_GAME_STATUS_START
+	PACKET_GAME_STATUS_START,
+
+	PACKET_GAME_STATUS_IMPOSTOR_WIN,
+	PACKET_GAME_STATUS_CREWMATE_WIN
 };
 
 enum PACKET_STATUS {
@@ -61,8 +65,9 @@ void send_packet(int id, int type, int status, struct json_object *args);
 
 #define get_arg(type, var, key, func)                                 \
 	do {                                                              \
+		if(args == NULL) break;                                       \
 		struct json_object *temp = json_object_object_get(args, key); \
-		var = (type) func(temp);                                     \
+		var = (type) func(temp);                                      \
 	} while(0)
 
 #define get_string_arg(var, key) get_arg(char *, var, key, json_object_get_string)
@@ -75,6 +80,7 @@ typedef void (*handler_t)(client_t *, struct json_object *);
 /* Handlers */
 void packet_name(client_t *client, struct json_object *args);
 void packet_clients(client_t *client, struct json_object *args);
+void packet_command(client_t *client, struct json_object *args);
 
 /* Handle a packet sent by the specified client.
    Returns whether the packet was handled successfully. */

@@ -3,11 +3,13 @@
 #include "constant.h"
 #include "server.h"
 #include "client.h"
+#include "game.h"
 #include "log.h"
 
 handler_t handlers[PACKET_COUNT] = {
 	[PACKET_NAME] = packet_name,
-	[PACKET_CLIENTS] = packet_clients
+	[PACKET_CLIENTS] = packet_clients,
+	[PACKET_COMMAND] = packet_command
 };
 
 /* When a client sends the server their name */
@@ -16,6 +18,7 @@ void packet_name(client_t *client, struct json_object *args) {
 	if(client->stage != CLIENT_STAGE_NAME)
 		return send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_AGAIN);
 
+	/* Chosen client name */
 	char *name; get_string_arg(name, "name");
 	
 	/* Make sure that the client specified a valid name. */
@@ -65,6 +68,28 @@ void packet_clients(client_t *client, struct json_object *args) {
 
 	send_packet(client->id, PACKET_CLIENTS, PACKET_STATUS_OK, client_array);
 }
+
+/* When a client runs a command */
+void packet_command(client_t *client, struct json_object *args) {
+	/* Command name */
+	char *name; get_string_arg(name, "name");
+
+		/* Make sure that the client specified a valid command. */
+	if(name == NULL)
+		return send_basic_packet(client->id, PACKET_COMMAND, PACKET_STATUS_INVALID);
+
+	#define is_command(str) strcmp(str, name) == 0
+
+	/* Start the game */
+	if(is_command("start_game")) {
+		start_game();
+	}
+
+	#undef is_command
+	send_basic_packet(client->id, PACKET_COMMAND, PACKET_STATUS_OK);
+}
+
+
 
 /* Send a packet to the specified client ID. */
 void send_packet(int id, int type, int status, struct json_object *args) {

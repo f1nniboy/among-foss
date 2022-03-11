@@ -18,7 +18,19 @@ enum client_stage {
 	CLIENT_STAGE_LOBBY,
 
 	/* The client is playing the game */
-	CLIENT_STAGE_GAME
+	CLIENT_STAGE_MAIN
+};
+
+/* Client roles */
+enum client_role {
+	CLIENT_ROLE_CREWMATE,
+	CLIENT_ROLE_IMPOSTOR
+};
+
+/* Client states */
+enum client_state {
+	CLIENT_STATE_ALIVE,
+	CLIENT_STATE_DEAD
 };
 
 /* Client structure */
@@ -29,7 +41,9 @@ typedef struct client {
 	int fd;                      /* Connection file descriptor */
 
 	char name[NAME_LEN_MAX + 1]; /* Name of the client */
+
 	enum client_stage stage;     /* Current stage of the client */
+	enum client_role role;       /* Game role of the client */
 } client_t;
 
 /* Get a client by its ID. */

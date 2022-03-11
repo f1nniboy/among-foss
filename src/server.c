@@ -1,6 +1,7 @@
 #include "constant.h"
 #include "client.h"
 #include "server.h"
+#include "game.h"
 #include "log.h"
 
 /* List of connected clients */
@@ -43,6 +44,9 @@ void start_server(uint16_t port) {
 		msg_die("Failed to listen on socket.");
 	
 	msg_info("Started the server on port '%d'.", port);
+
+	/* Initialize the game state. */
+	init_game_state();
 
 	/* Set up the signals. */
 	signal(SIGINT, stop_server);
