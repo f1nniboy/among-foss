@@ -33,6 +33,10 @@ location_t *get_location_by_name(char *name);
 /* Send the room information to the specified client. */
 void send_room_info(enum location_id location_id, int id);
 
+/* Notify other clients in the specified room about the specified client
+   entering or leaving the room. */
+void notify_movement(enum location_id location_id, int state, int id);
+
 /* Check whether the movement from @old_location to @new_location is possible using doors. */
 int check_doors(enum location_id old_id, enum location_id new_id);
 

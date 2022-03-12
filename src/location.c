@@ -70,7 +70,7 @@ void send_room_info(enum location_id location_id, int id) {
 	client_for_each(cli)
 		/* Don't add the client, which requested the room information, to the list.
 		   Also don't add clients, which are not actually in the room, to the list. */
-		if(cli == NULL || cli->id == id || cli->location != location_id) continue;
+		if(cli->id == id || cli->location != location_id) continue;
 
 		struct json_object *client_info = json_object_new_object();
 
@@ -85,6 +85,25 @@ void send_room_info(enum location_id location_id, int id) {
 
 	/* Send the packet. */
 	send_packet(id, PACKET_ROOM_INFO, PACKET_STATUS_OK, args);
+}
+
+/* Notify other clients in the specified room about the specified client
+   entering or leaving the room. */
+void notify_movement(enum location_id location_id, int state, int id) {
+	client_for_each(cli)
+		/* Don't send the packet to clients, which are not in the room. */
+		if((state == PACKET_CLIENT_INFO_ROOM_ENTER && cli->location != location_id) || cli->id == id)
+			return;
+
+		struct json_object *client_object = json_object_new_object();
+
+		/* Add the client's information to the object. */
+		json_object_object_add(client_object, "id", json_object_new_int(cli->id));
+		json_object_object_add(client_object, "name", json_object_new_string(cli->name));
+
+		/* Send the packet to the client. */
+		send_packet(cli->id, PACKET_CLIENT_INFO, state, client_object);
+	}
 }
 
 /* Check whether the movement from @old_location to @new_location is possible using doors. */
@@ -116,8 +135,15 @@ int set_location(enum location_id location_id, int id) {
 	if(!check_doors(client->location, location_id))
 		return PACKET_STATUS_INVALID;
 
+	/* Old client location */
+	location_t *old_location = get_location_by_id(client->location);
+
 	/* Set the client's location. */
 	client->location = location_id;
+
+	/* Notify other clients in the room. */
+	if(old_location != NULL) notify_movement(old_location->id, PACKET_CLIENT_INFO_ROOM_LEAVE, id);
+	notify_movement(location_id, PACKET_CLIENT_INFO_ROOM_ENTER, id);
 
 	return PACKET_STATUS_OK;
 }
