@@ -48,7 +48,7 @@ void start_game() {
 		client_t *client = get_client_by_id(i);
 		if(client == NULL) continue;
 
-		set_client_state(CLIENT_STATE_MAIN, LOC_CAFETERIA,
+		set_state(CLIENT_STATE_MAIN, LOC_CAFETERIA,
 			impostor_index == i ? CLIENT_ROLE_IMPOSTOR : CLIENT_ROLE_CREWMATE,
 			1, client->id);
 

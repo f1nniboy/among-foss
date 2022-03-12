@@ -14,7 +14,8 @@ handler_t handlers[PACKET_COUNT] = {
 	[PACKET_NAME] = packet_name,
 	[PACKET_CLIENTS] = packet_clients,
 	[PACKET_COMMAND] = packet_command,
-	[PACKET_CHAT] = packet_chat
+	[PACKET_CHAT] = packet_chat,
+	[PACKET_LOCATION] = packet_location
 };
 
 /* When a client sends the server their name */
@@ -40,7 +41,7 @@ void packet_name(client_t *client, struct json_object *args) {
 			return send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_INVALID);
 
 	/* Update the client's name and stage. */
-	client->state = CLIENT_STATE_MAIN;
+	client->state = CLIENT_STATE_LOBBY;
 	strcpy(client->name, name);
 
 	msg_info("Client #%d is now known as '%s'.", client->id, client->name);
@@ -102,31 +103,59 @@ void packet_command(client_t *client, struct json_object *args) {
 /* When a client sends a chat message */
 void packet_chat(client_t *client, struct json_object *args) {
 	/* Make sure that the client is in the lobby stage. */
-	if(client->state != CLIENT_STATE_MAIN)
-		return send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_INVALID);
-
-	/* Chosen chat message */
-	char *content; get_string_arg(content, "content");
-	
-	/* Make sure that the client specified a valid message. */
-	if(content == NULL)
-		return send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_INVALID);
-
-	/* Validate the message. */
-	for(int i = 0; i < strlen(content); i++)
-		if(!isprint(content[i]))
+	if(!is_in_game(client)) {
+		/* Chosen chat message */
+		char *content; get_string_arg(content, "content");
+		
+		/* Make sure that the client specified a valid message. */
+		if(content == NULL)
 			return send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_INVALID);
-			
-	send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_OK);
-	msg_warn(ANSI_COLOR_BOLD "%s" ANSI_COLOR_RESET " [#%d] -> %s", client->name, client->id, content);
 
-	struct json_object *args_object = json_object_new_object();
+		/* Validate the message. */
+		for(int i = 0; i < strlen(content); i++)
+			if(!isprint(content[i]))
+				return send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_INVALID);
+				
+		send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_OK);
+		msg_warn(ANSI_COLOR_BOLD "%s" ANSI_COLOR_RESET " [#%d] -> %s", client->name, client->id, content);
 
-	json_object_object_add(args_object, "id", json_object_new_int(client->id));
-	json_object_object_add(args_object, "content", json_object_new_string(content));
+		struct json_object *args_object = json_object_new_object();
 
-	/* Send the chat message to all other clients. */
-	send_global_packet(client->id, PACKET_CHAT, PACKET_STATUS_OK, args_object);
+		json_object_object_add(args_object, "id", json_object_new_int(client->id));
+		json_object_object_add(args_object, "content", json_object_new_string(content));
+
+		/* Send the chat message to all other clients. */
+		send_global_packet(client->id, PACKET_CHAT, PACKET_STATUS_OK, args_object);
+	} else
+		return send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_INVALID);
+}
+
+/* When a client sets their location */
+void packet_location(client_t *client, struct json_object *args) {
+	/* Make sure that the client is in the game. */
+	if(!is_in_game(client))
+		return send_basic_packet(client->id, PACKET_LOCATION, PACKET_STATUS_NOT_IN_GAME);
+
+	/* Location name */
+	char *name; get_string_arg(name, "name");
+
+	/* Make sure that a valid name was specified. */
+	if(name == NULL)
+		return send_basic_packet(client->id, PACKET_LOCATION, PACKET_STATUS_INVALID);
+
+	/* Get the specified location. */
+	location_t *new_location = get_location_by_name(name);
+
+	/* Make sure that the location is valid. */
+	if(new_location == NULL)
+		return send_basic_packet(client->id, PACKET_LOCATION, PACKET_STATUS_INVALID);
+
+	/* Check whether the movement is possible using the adjacent doors. */
+	int can_move = check_doors(client->location, new_location->id);
+
+	/* Set the client's location. */
+	set_client_location(new_location->id, client->id);
+	send_basic_packet(client->id, PACKET_LOCATION, PACKET_STATUS_OK);
 }
 
 

@@ -10,6 +10,9 @@ enum location_id {
 
 /* Location structure */
 typedef struct location {
+	/* ID of the location */
+	enum location_id id;
+
 	/* Name of the location */
 	char *name;
 
@@ -21,11 +24,14 @@ typedef struct location {
 /* List of locations */
 extern location_t *locations[];
 
-/* Get a location ID by its case-insensitive name. */
-enum location_id get_location_by_name(char *name);
+/* Get a location structure by its ID. */
+location_t *get_location_by_id(enum location_id id);
+
+/* Get a location structure by its case-insensitive name. */
+location_t *get_location_by_name(char *name);
 
 /* Send the room information to the specified client. */
-void send_room_info(enum location_id location, int id);
+void send_room_info(enum location_id location_id, int id);
 
-/* Set the location of a client. */
-void set_client_location(enum location_id location, int id);
+/* Check whether the movement from @old_location to @new_location is possible using doors. */
+int check_doors(enum location_id old_id, enum location_id new_id);

@@ -85,7 +85,7 @@ void disconnect_client(int id) {
 }
 
 /* Set a variety of information about a client and notify them about the change. */
-void set_client_state(enum client_state state, enum location_id location, enum client_role role, int alive, int id) {
+void set_state(enum client_state state, enum location_id location, enum client_role role, int alive, int id) {
 	client_t *client = get_client_by_id(id);
 	if(client == NULL) return;
 
