@@ -89,8 +89,18 @@ void send_room_info(enum location_id location_id, int id) {
 
 /* Check whether the movement from @old_location to @new_location is possible using doors. */
 int check_doors(enum location_id old_id, enum location_id new_id) {
-	/* TODO: Implement */
-	return 1;
+	location_t *old_location = get_location_by_id(old_id);
+	if(old_location == NULL) return 1;
+
+	for (int i = 0; i < old_location->door_count; i++) {
+		enum location_id door_id = old_location->doors[i];
+
+		/* Check if the door is adjacent to the new location. */
+		if(door_id == new_id)
+			return 1;
+	}
+
+	return 0;
 }
 
 /* Set the location of a player.
