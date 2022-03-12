@@ -20,7 +20,7 @@ handler_t handlers[PACKET_COUNT] = {
 /* When a client sends the server their name */
 void packet_name(client_t *client, struct json_object *args) {
 	/* Make sure that the client hasn't set their name already. */
-	if(client->stage != CLIENT_STAGE_NAME)
+	if(client->state != CLIENT_STATE_NAME)
 		return send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_AGAIN);
 
 	/* Chosen client name */
@@ -40,7 +40,7 @@ void packet_name(client_t *client, struct json_object *args) {
 			return send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_INVALID);
 
 	/* Update the client's name and stage. */
-	client->stage = CLIENT_STAGE_LOBBY;
+	client->state = CLIENT_STATE_MAIN;
 	strcpy(client->name, name);
 
 	msg_info("Client #%d is now known as '%s'.", client->id, client->name);
@@ -64,7 +64,7 @@ void packet_clients(client_t *client, struct json_object *args) {
 			continue;
 
 		/* Don't add clients, who haven't chosen their name yet, to the client list. */
-		if(cli->stage == CLIENT_STAGE_NAME)
+		if(cli->state == CLIENT_STATE_NAME)
 			continue;
 
 		struct json_object *client_object = json_object_new_object();
@@ -102,7 +102,7 @@ void packet_command(client_t *client, struct json_object *args) {
 /* When a client sends a chat message */
 void packet_chat(client_t *client, struct json_object *args) {
 	/* Make sure that the client is in the lobby stage. */
-	if(state->stage != CLIENT_STAGE_LOBBY)
+	if(client->state != CLIENT_STATE_MAIN)
 		return send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_INVALID);
 
 	/* Chosen chat message */
@@ -120,8 +120,13 @@ void packet_chat(client_t *client, struct json_object *args) {
 	send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_OK);
 	msg_warn(ANSI_COLOR_BOLD "%s" ANSI_COLOR_RESET " [#%d] -> %s", client->name, client->id, content);
 
+	struct json_object *args_object = json_object_new_object();
+
+	json_object_object_add(args_object, "id", json_object_new_int(client->id));
+	json_object_object_add(args_object, "content", json_object_new_string(content));
+
 	/* Send the chat message to all other clients. */
-	send_packet_with_string_pair(-client->id, PACKET_CHAT, PACKET_STATUS_OK, "content", content);
+	send_global_packet(client->id, PACKET_CHAT, PACKET_STATUS_OK, args_object);
 }
 
 
@@ -146,10 +151,33 @@ void send_packet(int id, int type, int status, struct json_object *args) {
 	char *str = (char *) json_object_to_json_string_ext(object, JSON_C_TO_STRING_PLAIN);
 
 	/* Send the packet. */
-	if(id < 0)
-		send_global_msg(str, id * -1);
-	else
-		send_msg(str, id);
+	send_msg(str, id);
+
+	/* Free the JSON object after using it. */
+	json_object_put(object);
+}
+
+/* Send a packet to all clients, except the specified sender ID. */
+void send_global_packet(int id, int type, int status, struct json_object *args) {
+	struct json_object *object;
+
+	/* Create a new JSON object. */
+	object = json_object_new_object();
+
+	/* Create the type integer. */
+	json_object_object_add(object, "type", json_object_new_int(type));
+
+	/* Create the status integer. */
+	json_object_object_add(object, "status", json_object_new_int(status));
+
+	if (args != NULL)
+		json_object_object_add(object, "arguments", args);
+
+	/* Convert the JSON object into a string. */
+	char *str = (char *) json_object_to_json_string_ext(object, JSON_C_TO_STRING_PLAIN);
+
+	/* Send the packet. */
+	send_global_msg(str, id);
 
 	/* Free the JSON object after using it. */
 	json_object_put(object);

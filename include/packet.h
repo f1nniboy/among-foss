@@ -10,6 +10,7 @@ enum PACKET_ID {
 	PACKET_CLIENTS,
 	PACKET_CLIENT_INFO,
 	PACKET_GAME_STATUS,
+	PACKET_STATE,
 
 	/* Incoming, sent from the client */
 	/* - */
@@ -30,7 +31,7 @@ enum packet_client_info {
 
 enum packet_game_status {
 	PACKET_GAME_STATUS_FULL,
-	PACKET_GAME_STATUS_START,
+	PACKET_GAME_STATUS_RUNNING,
 
 	PACKET_GAME_STATUS_IMPOSTOR_WIN,
 	PACKET_GAME_STATUS_CREWMATE_WIN
@@ -48,6 +49,9 @@ enum PACKET_STATUS {
 
 /* Send a packet to the specified client ID. */
 void send_packet(int id, int type, int status, struct json_object *args);
+
+/* Send a packet to all clients, except the specified sender ID. */
+void send_global_packet(int id, int type, int status, struct json_object *args);
 
 #define send_basic_packet(id, type, status) send_packet(id, type, status, NULL)
 

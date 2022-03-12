@@ -20,10 +20,9 @@ client_t *get_client_by_id(int id) {
 void add_client_to_queue(client_t *client) {
 	pthread_mutex_lock(&clients_mutex);
 
-	/* Find a free client slot. */
-	for(int i = 0; i < NUM_CLIENTS; ++i) {
+	client_for_each(cli)
 		/* Check whether the current client slot is free. */
-		if(!clients[i]) {
+		if(!cli) {
 			clients[i] = client;
 			break;
 		}
@@ -36,10 +35,9 @@ void add_client_to_queue(client_t *client) {
 void remove_client_from_queue(int id) {
 	pthread_mutex_lock(&clients_mutex);
 
-	/* Find a the taken client slot. */
-	for(int i = 0; i < NUM_CLIENTS; ++i) {
+	client_for_each(client)
 		/* Check whether the current client slot is taken. */
-		if(clients[i] && clients[i]->id == id) {
+		if(client && client->id == id) {
 			clients[i] = NULL;
 			break;
 		}
@@ -54,7 +52,7 @@ void broadcast_client_status(int id, int status) {
 	if(client == NULL) return;
 
 	/* Only broadcast the status for players who have set their name. */
-	if(client->stage == CLIENT_STAGE_NAME)
+	if(client->state == CLIENT_STATE_NAME)
 		return;
 
 	struct json_object *client_object = json_object_new_object();
@@ -63,7 +61,8 @@ void broadcast_client_status(int id, int status) {
 	json_object_object_add(client_object, "id", json_object_new_int(client->id));
 	json_object_object_add(client_object, "name", json_object_new_string(client->name));
 
-	send_packet(-id, PACKET_CLIENT_INFO, status, client_object);
+	/* Send the packet to all clients. */
+	send_global_packet(id, PACKET_CLIENT_INFO, status, client_object);
 }
 
 /* Disconnect the specified client. */
@@ -85,6 +84,30 @@ void disconnect_client(int id) {
 	}
 }
 
+/* Set a variety of information about a client and notify them about the change. */
+void set_client_state(enum client_state state, enum location_id location, enum client_role role, int alive, int id) {
+	client_t *client = get_client_by_id(id);
+	if(client == NULL) return;
+
+	struct json_object *state_object = json_object_new_object();
+
+	#define add(key, value)                                                        \
+		if(value != -1) {                                                          \
+			json_object_object_add(state_object, key, json_object_new_int(value)); \
+			client->value = value;                                                 \
+		}
+
+	/* Add the client's information to the object. */
+	add("state", state);
+	add("location", location);
+	add("role", role);
+	add("alive", alive);
+
+	/* Send the packet. */
+	send_packet(id, PACKET_STATE, PACKET_STATUS_OK, state_object);
+	#undef add
+}
+
 /* Send a message to the specified client. */
 void send_msg(char *str, int id) {
 	client_t *client = get_client_by_id(id);
@@ -99,10 +122,10 @@ void send_msg(char *str, int id) {
 
 /* Send a message to all clients except the sender. */
 void send_global_msg(char *str, int sender_id) {
-	for(int i = 0; i < NUM_CLIENTS; ++i) {
+	client_for_each(client)
 		/* Make sure that the client slot is taken. */
-		if(clients[i] && clients[i]->stage != CLIENT_STAGE_NAME && clients[i]->id != sender_id)
-			send_msg(str, clients[i]->id);
+		if(client && client->state != CLIENT_STATE_NAME && client->id != sender_id)
+			send_msg(str, client->id);
 	}
 }
 
@@ -121,8 +144,8 @@ void *handle_client(void *arg) {
 	msg_info("Client #%d has connected.", client->id);
 	client_count++;
 
-	/* Set the client's stage. */
-	client->stage = CLIENT_STAGE_NAME;
+	/* Set the client's state. */
+	client->state = CLIENT_STATE_NAME;
 
 	/* Receive messages from the client. */
 	while((read_len = read(client->fd, buff, sizeof(buff) - 1)) > 0 && client->connected) {

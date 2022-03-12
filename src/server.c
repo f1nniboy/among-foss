@@ -12,7 +12,7 @@ pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 int client_count = 0;
 
 /* Last used client ID */
-int last_id = 1;
+int last_id = 0;
 
 /* Start a server on the specified port. */
 void start_server(uint16_t port) {

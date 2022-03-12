@@ -9,17 +9,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-/* Client stages */
-enum client_stage {
-	/* The client is still configuring their name */
-	CLIENT_STAGE_NAME,
-	
-	/* The client is waiting in the lobby for the game to start */
-	CLIENT_STAGE_LOBBY,
+#include "location.h"
 
-	/* The client is playing the game */
-	CLIENT_STAGE_MAIN
-};
+#define client_for_each(var)               \
+	for(int i = 0; i < NUM_CLIENTS; ++i) { \
+		client_t *var = clients[i];
 
 /* Client roles */
 enum client_role {
@@ -29,8 +23,11 @@ enum client_role {
 
 /* Client states */
 enum client_state {
-	CLIENT_STATE_ALIVE,
-	CLIENT_STATE_DEAD
+	/* Choosing a name */
+	CLIENT_STATE_NAME,
+
+	/* In the lobby */
+	CLIENT_STATE_MAIN
 };
 
 /* Client structure */
@@ -42,8 +39,10 @@ typedef struct client {
 
 	char name[NAME_LEN_MAX + 1]; /* Name of the client */
 
-	enum client_stage stage;     /* Current stage of the client */
+	int alive;                   /* Whether the client is still alive */
+	enum client_state state;     /* Current state of the client */
 	enum client_role role;       /* Game role of the client */
+	enum location_id location;   /* Current location on the map */
 } client_t;
 
 /* Get a client by its ID. */
@@ -60,6 +59,9 @@ void broadcast_client_status(int id, int status);
 
 /* Disconnect the specified client. */
 void disconnect_client(int id);
+
+/* Set a variety of information about a client and notify them about the change. */
+void set_client_state(enum client_state state, enum location_id location, enum client_role role, int alive, int id);
 
 /* Send a message to the specified client. */
 void send_msg(char *str, int id);

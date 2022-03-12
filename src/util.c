@@ -1,4 +1,5 @@
 #include "util.h"
+#include <stdlib.h>
 
 /* Remove all newline characters. */
 void strip_newline(char *str) {
@@ -8,4 +9,9 @@ void strip_newline(char *str) {
 
 		str++;
 	}
+}
+
+/* Generate a random number. */
+int random_num(int min, int max) {
+	return (rand() % (max - min + 1)) + min;
 }
