@@ -35,3 +35,7 @@ void send_room_info(enum location_id location_id, int id);
 
 /* Check whether the movement from @old_location to @new_location is possible using doors. */
 int check_doors(enum location_id old_id, enum location_id new_id);
+
+/* Set the location of a player.
+   Returns a packet status code. */
+int set_location(enum location_id location_id, int id);

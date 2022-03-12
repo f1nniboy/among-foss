@@ -2,6 +2,7 @@
 #include "client.h"
 #include "server.h"
 #include "packet.h"
+#include "game.h"
 #include "util.h"
 #include "log.h"
 
@@ -20,7 +21,10 @@ client_t *get_client_by_id(int id) {
 void add_client_to_queue(client_t *client) {
 	pthread_mutex_lock(&clients_mutex);
 
-	client_for_each(cli)
+	/* Find a free client slot. */
+	for(int i = 0; i < NUM_CLIENTS; ++i) {
+		client_t *cli = clients[i];
+
 		/* Check whether the current client slot is free. */
 		if(!cli) {
 			clients[i] = client;
@@ -35,7 +39,10 @@ void add_client_to_queue(client_t *client) {
 void remove_client_from_queue(int id) {
 	pthread_mutex_lock(&clients_mutex);
 
-	client_for_each(client)
+	/* Find a free client slot. */
+	for(int i = 0; i < NUM_CLIENTS; ++i) {
+		client_t *client = clients[i];
+
 		/* Check whether the current client slot is taken. */
 		if(client && client->id == id) {
 			clients[i] = NULL;
@@ -81,11 +88,14 @@ void disconnect_client(int id) {
 		/* Remove the client from the queue and memory. */
 		remove_client_from_queue(id);
 		free(client);
+
+		/* Check whether a role has won, after the client left. */
+		check_game();
 	}
 }
 
 /* Set a variety of information about a client and notify them about the change. */
-void set_state(enum client_state state, enum location_id location, enum client_role role, int alive, int id) {
+void set_state(enum client_state state, enum client_role role, int alive, int id) {
 	client_t *client = get_client_by_id(id);
 	if(client == NULL) return;
 
@@ -99,7 +109,6 @@ void set_state(enum client_state state, enum location_id location, enum client_r
 
 	/* Add the client's information to the object. */
 	add("state", state);
-	add("location", location);
 	add("role", role);
 	add("alive", alive);
 

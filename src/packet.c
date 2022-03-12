@@ -45,10 +45,10 @@ void packet_name(client_t *client, struct json_object *args) {
 	strcpy(client->name, name);
 
 	msg_info("Client #%d is now known as '%s'.", client->id, client->name);
-	send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_OK);
 
 	/* Notify other clients, that the client has joined the game. */
 	broadcast_client_status(client->id, PACKET_CLIENT_INFO_JOIN);
+	send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_OK);
 }
 
 /* When a client requests the client list from the server */
@@ -56,12 +56,9 @@ void packet_clients(client_t *client, struct json_object *args) {
 	struct json_object *client_array = json_object_new_array();
 
 	/* Loop through all clients. */
-	for(int id = 0; id < NUM_CLIENTS; ++id) {
-		client_t *cli = get_client_by_id(id);
-		if(cli == NULL) continue;
-
+	client_for_each(cli)
 		/* Don't add the requesting client to the client list. */
-		if(client->id == id)
+		if(client->id == cli->id)
 			continue;
 
 		/* Don't add clients, who haven't chosen their name yet, to the client list. */
@@ -71,7 +68,7 @@ void packet_clients(client_t *client, struct json_object *args) {
 		struct json_object *client_object = json_object_new_object();
 
 		/* Add the client's information to the object. */
-		json_object_object_add(client_object, "id", json_object_new_int(id));
+		json_object_object_add(client_object, "id", json_object_new_int(cli->id));
 		json_object_object_add(client_object, "name", json_object_new_string(cli->name));
 
 		json_object_array_add(client_array, client_object);
@@ -97,7 +94,6 @@ void packet_command(client_t *client, struct json_object *args) {
 	}
 
 	#undef is_command
-	send_basic_packet(client->id, PACKET_COMMAND, PACKET_STATUS_OK);
 }
 
 /* When a client sends a chat message */
@@ -150,12 +146,12 @@ void packet_location(client_t *client, struct json_object *args) {
 	if(new_location == NULL)
 		return send_basic_packet(client->id, PACKET_LOCATION, PACKET_STATUS_INVALID);
 
-	/* Check whether the movement is possible using the adjacent doors. */
-	int can_move = check_doors(client->location, new_location->id);
-
 	/* Set the client's location. */
-	set_client_location(new_location->id, client->id);
-	send_basic_packet(client->id, PACKET_LOCATION, PACKET_STATUS_OK);
+	int status = set_location(new_location->id, client->id);
+	send_basic_packet(client->id, PACKET_LOCATION, status);
+
+	/* Send the client information about the newly entered room. */
+	if(status == PACKET_STATUS_OK) send_room_info(client->location, client->id);
 }
 
 
@@ -218,6 +214,11 @@ int handle_packet(int id, int type, struct json_object *args) {
 
 	/* Make sure that the packet type is not out of bounds. */
 	if(type < 0 || type > PACKET_COUNT - 1)
+		return 0;
+
+	/* Don't handle any packets except the NAME packet for clients,
+	   who have not authenticated yet. */
+	if(client->state == CLIENT_STATE_NAME && type != PACKET_NAME)
 		return 0;
 
 	handler_t handler = handlers[type];

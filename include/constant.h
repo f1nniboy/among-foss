@@ -10,3 +10,7 @@
 #define NAME_LEN_MIN  2   /* Minimum name length */
 #define NAME_LEN_MAX 10   /* Maximum name length */
 #define BUFFER_SIZE  2048 /* Buffer size, in bytes */
+
+/* Game */
+#define KILL_COOLDONW  5 /* How many rooms the impostor has to move through, to be able to kill someone again */
+#define TASK_COUNT    10 /* How many tasks each player should receive */

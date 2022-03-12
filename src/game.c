@@ -40,23 +40,76 @@ void start_game() {
 	if(state->state != GAME_STATE_LOBBY)
 		return msg_warn("The game is already running.");
 
+	set_game_status(GAME_STATE_MAIN, -1);
+
 	/* Choose a random impostor. */
-	int impostor_index = random_num(0, client_count - 1);
+	int impostor_id = random_num(0, client_count - 1);
 
 	/* Assign the roles and set default values for all clients. */
-	for(int i = 0; i < NUM_CLIENTS; ++i) {
-		client_t *client = get_client_by_id(i);
-		if(client == NULL) continue;
-
-		set_state(CLIENT_STATE_MAIN, LOC_CAFETERIA,
-			impostor_index == i ? CLIENT_ROLE_IMPOSTOR : CLIENT_ROLE_CREWMATE,
+	client_for_each(client)
+		/* Set the state. */
+		set_state(CLIENT_STATE_MAIN,
+			impostor_id == i ? CLIENT_ROLE_IMPOSTOR : CLIENT_ROLE_CREWMATE,
 			1, client->id);
 
-		if(impostor_index == i) state->impostor_id = client->id;
+		/* Set the location. */
+		set_location(LOC_CAFETERIA, client->id);
+
+		if(client->id == impostor_id) state->impostor_id = client->id;
 	}
 
-	set_game_status(GAME_STATE_MAIN, -1);
+	/* Send every client information about the initial room. */
+	client_for_each(client)
+		/* Send the client information about the initial room. */
+		send_room_info(client->location, client->id);
+	}
+
 	msg_info("The game has started.", client_count);
+}
+
+/* Check whether a role has won the game. */
+void check_game() {
+	#define win(role) do { winner = role; goto end; } while(0)
+
+	/* Make sure that a game is currently running. */
+	if(state->state == GAME_STATE_LOBBY)
+		return;
+
+	/* Winner of the game */
+	enum client_role winner = -1;
+
+	/* Numbers of clients, which are still alive */
+	int alive_count = 0;
+
+	/* Minimum amount of crewmates needed */
+	int min_count = 1;
+
+	client_for_each(client)
+		/* Check whether the impostor is still alive. */
+		if(client->id == state->impostor_id && !client->alive)
+			win(CLIENT_ROLE_CREWMATE);
+
+		/* Increase the alive counter. */
+		if(client->alive && client->id != state->impostor_id)
+			alive_count++;
+	}
+
+	/* Check whether the impostor is still connected to the game. */
+	if(get_client_by_id(state->impostor_id) == NULL)
+		win(CLIENT_ROLE_CREWMATE);
+
+	/* Check whether there are still enough crewmates. */
+	if(alive_count <= min_count)
+		win(CLIENT_ROLE_IMPOSTOR);
+
+	/* Don't end the game, if no one won. */
+	if(winner == -1) return;
+
+end:
+	/* End the game with the winner. */
+	end_game(winner);
+
+	#undef win
 }
 
 /* End the game, with the specified winner. */
@@ -64,6 +117,7 @@ void end_game(enum client_role role) {
 	/* Reset the values. */
 	state->impostor_id = -1;
 
+	/* Set the game status back to the lobby. */
 	set_game_status(GAME_STATE_LOBBY, role);
 
 	msg_info("The game has ended.", client_count);

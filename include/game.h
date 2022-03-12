@@ -20,9 +20,6 @@ typedef struct game {
 	/* Current game state */
 	enum game_state state;
 
-	/* Client ID of the game owner */
-	int owner_id;
-
 	/* Client ID of the impostor */
 	int impostor_id;
 } game_t;
@@ -38,6 +35,9 @@ void set_game_status(enum game_state new_state, enum client_role role);
 
 /* Start the game. */
 void start_game();
+
+/* Check whether a role has won the game. */
+void check_game();
 
 /* End the game, with the specified winner. */
 void end_game(enum client_role role);

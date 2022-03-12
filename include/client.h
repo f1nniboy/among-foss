@@ -11,9 +11,12 @@
 
 #include "location.h"
 
-#define client_for_each(var)               \
-	for(int i = 0; i < NUM_CLIENTS; ++i) { \
-		client_t *var = clients[i];
+#define client_for_each(var)                               \
+	for(int i = 0; i < NUM_CLIENTS; ++i) {                 \
+		client_t *var = clients[i];                        \
+		                                                   \
+		if(var == NULL || var->state == CLIENT_STATE_NAME) \
+			continue;
 
 /* Client roles */
 enum client_role {
@@ -66,10 +69,7 @@ void broadcast_client_status(int id, int status);
 void disconnect_client(int id);
 
 /* Set a variety of information about a client and notify them about the change. */
-void set_state(enum client_state state, enum location_id location, enum client_role role, int alive, int id);
-
-/* Helper Functions */
-#define set_client_location(location, id) set_state(-1, location, -1, -1, id);
+void set_state(enum client_state state, enum client_role role, int alive, int id);
 
 /* Send a message to the specified client. */
 void send_msg(char *str, int id);
