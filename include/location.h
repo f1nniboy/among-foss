@@ -15,7 +15,7 @@ enum location_id {
 	LOC_WEAPONS,
 	LOC_SHIELDS,
 	LOC_NAVIGATION,
-	
+
 	LOC_COUNT
 };
 
@@ -38,7 +38,7 @@ extern location_t *locations[];
 /* Get a location structure by its ID. */
 location_t *get_location_by_id(enum location_id id);
 
-/* Get a location structure by its case-insensitive name. */
+/* Get a location structure by its name. */
 location_t *get_location_by_name(char *name);
 
 /* Send the room information to the specified client. */

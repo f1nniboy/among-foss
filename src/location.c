@@ -34,7 +34,7 @@ location_t *get_location_by_id(enum location_id id) {
 	return NULL;
 }
 
-/* Get a location structure by its case-insensitive name. */
+/* Get a location structure by its name. */
 location_t *get_location_by_name(char *name) {
 	for(int i = 0; i < LOC_COUNT; ++i) {
 		location_t *location = get_location_by_id(i);
@@ -43,7 +43,7 @@ location_t *get_location_by_name(char *name) {
 		if(location == NULL)
 			continue;
 
-		/* If the name matches, return the location ID. */
+		/* If the name matches, return the location structure. */
 		if(strcmp(name, location->name) == 0)
 			return location;
 	}

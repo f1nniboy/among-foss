@@ -11,6 +11,7 @@ enum PACKET_ID {
 	PACKET_GAME_STATUS,
 	PACKET_ROOM_INFO,
 	PACKET_STATE,
+	PACKET_TASKS,
 
 	/* Incoming, sent from the client */
 	PACKET_COMMAND,
@@ -20,6 +21,7 @@ enum PACKET_ID {
 	/* Both, sent from and to the client */
 	PACKET_CLIENTS,
 	PACKET_CHAT,
+	PACKET_TASK,
 
 	/* Packet counter; do not remove */
 	PACKET_COUNT
@@ -53,7 +55,9 @@ enum PACKET_STATUS {
 	PACKET_STATUS_WRONG_LENGTH,
 
 	/* Game */
-	PACKET_STATUS_NOT_IN_GAME
+	PACKET_STATUS_NOT_IN_GAME,
+	PACKET_STATUS_WRONG_ROLE,
+	PACKET_STATUS_WRONG_LOCATION
 };
 
 /* Send a packet to the specified client ID. */
@@ -97,6 +101,7 @@ void packet_clients(client_t *client, struct json_object *args);
 void packet_command(client_t *client, struct json_object *args);
 void packet_chat(client_t *client, struct json_object *args);
 void packet_location(client_t *client, struct json_object *args);
+void packet_task(client_t *client, struct json_object *args);
 
 /* Handle a packet sent by the specified client.
    Returns whether the packet was handled successfully. */

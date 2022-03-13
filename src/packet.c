@@ -7,15 +7,17 @@
 #include "server.h"
 #include "client.h"
 #include "game.h"
+#include "task.h"
 #include "log.h"
 
 
 handler_t handlers[PACKET_COUNT] = {
-	[PACKET_NAME] = packet_name,
-	[PACKET_CLIENTS] = packet_clients,
-	[PACKET_COMMAND] = packet_command,
-	[PACKET_CHAT] = packet_chat,
-	[PACKET_LOCATION] = packet_location
+	[PACKET_NAME]     = packet_name,
+	[PACKET_CLIENTS]  = packet_clients,
+	[PACKET_COMMAND]  = packet_command,
+	[PACKET_CHAT]     = packet_chat,
+	[PACKET_LOCATION] = packet_location,
+	[PACKET_TASK]     = packet_task
 };
 
 /* When a client sends the server their name */
@@ -87,11 +89,19 @@ void packet_command(client_t *client, struct json_object *args) {
 		return send_basic_packet(client->id, PACKET_COMMAND, PACKET_STATUS_INVALID);
 
 	#define is_command(str) strcmp(str, name) == 0
+	#define send_response(new_status) do { status = new_status; goto end; } while(0)
+
+	/* Status code */
+	int status = PACKET_STATUS_OK;
 
 	/* Start the game */
 	if(is_command("start_game")) {
-		start_game();
+		send_response(start_game());
 	}
+
+end:
+	if(status != PACKET_STATUS_OK)
+		send_basic_packet(client->id, PACKET_COMMAND, status);
 
 	#undef is_command
 }
@@ -152,6 +162,35 @@ void packet_location(client_t *client, struct json_object *args) {
 
 	/* Send the client information about the newly entered room. */
 	if(status == PACKET_STATUS_OK) send_room_info(client->location, client->id);
+}
+
+/* When a client tries to complete a task */
+void packet_task(client_t *client, struct json_object *args) {
+	/* Make sure that the client is in the game. */
+	if(!is_in_game(client))
+		return send_basic_packet(client->id, PACKET_TASK, PACKET_STATUS_NOT_IN_GAME);
+
+	/* Make sure that the client is not an impostor. */
+	if(state->impostor_id == client->id)
+		return send_basic_packet(client->id, PACKET_TASK, PACKET_STATUS_WRONG_ROLE);
+
+	/* Task description */
+	char *description; get_string_arg(description, "description");
+
+	/* Make sure that a valid task description was specified. */
+	if(description == NULL)
+		return send_basic_packet(client->id, PACKET_TASK, PACKET_STATUS_INVALID);
+
+	/* Get the task by its description. */
+	task_t *task = get_task_by_description(description);
+
+	/* Make sure that a valid task was specified. */
+	if(task == NULL)
+		return send_basic_packet(client->id, PACKET_TASK, PACKET_STATUS_INVALID);
+
+	/* Try to complete the task for the client. */
+	int status = do_task(task->id, client->id);
+	send_basic_packet(client->id, PACKET_TASK, status);
 }
 
 

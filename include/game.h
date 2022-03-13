@@ -34,7 +34,7 @@ void init_game_state();
 void set_game_status(enum game_state new_state, enum client_role role);
 
 /* Start the game. */
-void start_game();
+int start_game();
 
 /* Check whether a role has won the game. */
 void check_game();

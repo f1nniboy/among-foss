@@ -1,6 +1,7 @@
 #include "constant.h"
 #include "client.h"
 #include "server.h"
+#include "task.h"
 #include "game.h"
 #include "util.h"
 #include "log.h"
@@ -36,9 +37,11 @@ void set_game_status(enum game_state new_state, enum client_role role) {
 }
 
 /* Start the game. */
-void start_game() {
-	if(state->state != GAME_STATE_LOBBY)
-		return msg_warn("The game is already running.");
+int start_game() {
+	if(state->state != GAME_STATE_LOBBY) {
+		msg_warn("The game is already running.");
+		return PACKET_STATUS_AGAIN;
+	}
 
 	set_game_status(GAME_STATE_MAIN, -1);
 
@@ -55,6 +58,9 @@ void start_game() {
 		/* Set the location. */
 		set_location(LOC_CAFETERIA, client->id);
 
+		/* Assign the client some tasks. */
+		assign_tasks(client->id);
+
 		if(client->id == impostor_id) state->impostor_id = client->id;
 	}
 
@@ -65,6 +71,7 @@ void start_game() {
 	}
 
 	msg_info("The game has started.", client_count);
+	return PACKET_STATUS_OK;
 }
 
 /* Check whether a role has won the game. */
@@ -82,10 +89,11 @@ void check_game() {
 	int alive_count = 0;
 
 	/* Minimum amount of crewmates needed */
-	int min_count = 1;
+	int min_count = 0;
 
 	client_for_each(client)
-		/* Check whether the impostor is still alive. */
+		/* Check whether the impostor is still alive.
+		   This shouldn't happen under normal circumstances. */
 		if(client->id == state->impostor_id && !client->alive)
 			win(CLIENT_ROLE_CREWMATE);
 
@@ -101,6 +109,8 @@ void check_game() {
 	/* Check whether there are still enough crewmates. */
 	if(alive_count <= min_count)
 		win(CLIENT_ROLE_IMPOSTOR);
+
+	msg_warn("%d is smaller or equal than %d", alive_count, min_count);
 
 	/* Don't end the game, if no one won. */
 	if(winner == -1) return;

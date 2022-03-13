@@ -49,6 +49,9 @@ typedef struct client {
 	enum client_state state;     /* Current state of the client */
 	enum client_role role;       /* Game role of the client */
 	enum location_id location;   /* Current location on the map */
+
+	int tasks[TASK_AMOUNT];      /* Array of task IDs */
+	int tasks_done[TASK_AMOUNT]; /* Array, corresponding to the task array, which contains whether a task has been completed */
 } client_t;
 
 #define is_in_game(client) (client->state == CLIENT_STATE_MAIN && state->state == GAME_STATE_MAIN)
