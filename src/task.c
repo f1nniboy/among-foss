@@ -4,6 +4,7 @@
 #include "location.h"
 #include "constant.h"
 #include "client.h"
+#include "server.h"
 #include "packet.h"
 #include "task.h"
 #include "game.h"
@@ -41,6 +42,23 @@ task_t *get_task_by_description(char *description) {
 	}
 
 	return NULL;
+}
+
+/* Check whether all clients have completed their tasks. */
+int check_tasks() {
+	client_for_each(client)
+		/* Skip the impostor and dead players. */
+		if(!client->alive || state->impostor_id == client->id)
+			continue;
+
+		/* Loop through the client's tasks. */
+		for(int i = 0; i < TASK_AMOUNT; ++i) {
+			if(!client->tasks_done[i])
+				return 0;
+		}
+	}
+
+	return 1;
 }
 
 /* Assign random tasks to the specified client. */

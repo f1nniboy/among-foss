@@ -110,7 +110,9 @@ void check_game() {
 	if(alive_count <= min_count)
 		win(CLIENT_ROLE_IMPOSTOR);
 
-	msg_warn("%d is smaller or equal than %d", alive_count, min_count);
+	/* Check whether all crewmates have completed their tasks. */
+	if(check_tasks())
+		win(CLIENT_ROLE_CREWMATE);
 
 	/* Don't end the game, if no one won. */
 	if(winner == -1) return;

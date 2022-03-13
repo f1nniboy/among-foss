@@ -30,6 +30,9 @@ task_t *get_task_by_id(enum task_id id);
 /* Get a task structure by its description. */
 task_t *get_task_by_description(char *description);
 
+/* Check whether all clients have completed their tasks. */
+int check_tasks();
+
 /* Assign random tasks to the specified client. */
 void assign_tasks(int id);
 
