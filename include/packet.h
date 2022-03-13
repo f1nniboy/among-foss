@@ -7,7 +7,6 @@
 enum PACKET_ID {
 	/* Outgoing, sent to the client */
 	PACKET_INFO,
-	PACKET_CLIENTS,
 	PACKET_CLIENT_INFO,
 	PACKET_GAME_STATUS,
 	PACKET_ROOM_INFO,
@@ -19,6 +18,7 @@ enum PACKET_ID {
 	PACKET_LOCATION,
 
 	/* Both, sent from and to the client */
+	PACKET_CLIENTS,
 	PACKET_CHAT,
 
 	/* Packet counter; do not remove */

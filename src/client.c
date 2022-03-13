@@ -156,6 +156,9 @@ void *handle_client(void *arg) {
 	/* Set the client's state. */
 	client->state = CLIENT_STATE_NAME;
 
+	/* Send information about the server to the client. */
+	send_packet_with_string_pair(client->id, PACKET_INFO, PACKET_STATUS_OK, "version", VERSION);
+
 	/* Receive messages from the client. */
 	while((read_len = read(client->fd, buff, sizeof(buff) - 1)) > 0 && client->connected) {
 		/* Terminate the read string. */

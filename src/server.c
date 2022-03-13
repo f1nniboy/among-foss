@@ -67,8 +67,8 @@ void start_server(uint16_t port) {
 		add_client_to_queue(client);
 		pthread_create(&tid, NULL, &handle_client, (void *) client);
 
-		/* Reduce the CPU usage. */
-		sleep(1);
+		/* Reduce the CPU usage, by waiting for 100ms. */
+		usleep(100 * 1000);
 	}
 }
 
