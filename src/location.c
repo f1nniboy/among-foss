@@ -8,10 +8,20 @@
 
 /* List of locations */
 location_t *locations[] = {
-	&(location_t) { LOC_CAFETERIA, "Cafeteria", { LOC_WEAPONS, LOC_MEDBAY }, 2 },
-	&(location_t) { LOC_WEAPONS,   "Weapons",   { LOC_CAFETERIA }, 1 },
-	&(location_t) { LOC_MEDBAY,    "MedBay",    { LOC_CAFETERIA }, 1 },
-	/* TODO: Complete */
+	&(location_t) { LOC_CAFETERIA,      "Cafeteria",      { LOC_MEDBAY, LOC_ADMIN, LOC_WEAPONS                         }, 3 },
+	&(location_t) { LOC_REACTOR,        "Reactor",        { LOC_UPPER_ENGINE, LOC_SECURITY, LOC_LOWER_ENGINE           }, 3 },
+	&(location_t) { LOC_UPPER_ENGINE,   "Upper Engine",   { LOC_REACTOR, LOC_SECURITY, LOC_MEDBAY                      }, 3 },
+	&(location_t) { LOC_LOWER_ENGINE,   "Lower Engine",   { LOC_REACTOR, LOC_SECURITY, LOC_ELECTRICAL                  }, 3 },
+	&(location_t) { LOC_SECURITY,       "Security",       { LOC_UPPER_ENGINE, LOC_LOWER_ENGINE, LOC_REACTOR            }, 3 },
+	&(location_t) { LOC_MEDBAY,         "MedBay",         { LOC_UPPER_ENGINE, LOC_CAFETERIA                            }, 2 },
+	&(location_t) { LOC_ELECTRICAL,     "Electrical",     { LOC_LOWER_ENGINE, LOC_STORAGE                              }, 2 },
+	&(location_t) { LOC_STORAGE,        "Storage",        { LOC_ELECTRICAL, LOC_ADMIN, LOC_COMMUNICATIONS, LOC_SHIELDS }, 4 },
+	&(location_t) { LOC_ADMIN,          "Admin",          { LOC_CAFETERIA, LOC_STORAGE                                 }, 2 },
+	&(location_t) { LOC_COMMUNICATIONS, "Communications", { LOC_STORAGE, LOC_SHIELDS                                   }, 2 },
+	&(location_t) { LOC_O2,             "O2",             { LOC_SHIELDS, LOC_WEAPONS, LOC_NAVIGATION                   }, 3 },
+	&(location_t) { LOC_WEAPONS,        "Weapons",        { LOC_CAFETERIA, LOC_O2, LOC_NAVIGATION                      }, 3 },
+	&(location_t) { LOC_SHIELDS,        "Shields",        { LOC_STORAGE, LOC_COMMUNICATIONS, LOC_O2, LOC_NAVIGATION    }, 4 },
+	&(location_t) { LOC_NAVIGATION,     "Navigation",     { LOC_WEAPONS, LOC_O2, LOC_SHIELDS                           }, 3 }
 };
 
 /* Get a location structure by its ID. */
