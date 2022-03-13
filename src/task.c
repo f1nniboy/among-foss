@@ -13,8 +13,42 @@
 
 /* List of tasks */
 task_t *tasks[] = {
-	&(task_t) { TASK_TEST1, "Test 1", LOC_CAFETERIA },
-	&(task_t) { TASK_TEST2, "Test 2", LOC_MEDBAY    }
+	&(task_t) { TASK_CAFE_TRASH,  "Empty trash", LOC_CAFETERIA },
+	&(task_t) { TASK_CAFE_COFFEE, "Start the coffee maker", LOC_CAFETERIA },
+	&(task_t) { TASK_CAFE_WIRES, "Fix wiring", LOC_CAFETERIA },
+
+	&(task_t) { TASK_STORAGE_TRASH, "Empty the trash chute", LOC_STORAGE },
+	&(task_t) { TASK_STORAGE_WIRES, "Fix wiring", LOC_STORAGE },
+	&(task_t) { TASK_STORAGE_CLEAN, "Clean the floor", LOC_STORAGE },
+
+	&(task_t) { TASK_ELECTRICAL_WIRES, "Fix wiring", LOC_ELECTRICAL },
+	&(task_t) { TASK_ELECTRICAL_BREAKERS, "Reset breakers", LOC_ELECTRICAL },
+	
+	&(task_t) { TASK_ADMIN_WIRES, "Fix wiring", LOC_ADMIN },
+	&(task_t) { TASK_ADMIN_CLEAN, "Clean the floor", LOC_ADMIN },
+
+	&(task_t) { TASK_NAVIGATION_WIRES, "Fix wiring", LOC_NAVIGATION },
+	&(task_t) { TASK_NAVIGATION_COURSE, "Adjust course", LOC_NAVIGATION },
+	&(task_t) { TASK_NAVIGATION_HEADING, "Check headings", LOC_NAVIGATION },
+
+	&(task_t) { TASK_WEAPONS_WIRES, "Fix wiring", LOC_WEAPONS },
+	&(task_t) { TASK_WEAPONS_CALIBRATE, "Calibrate targeting system", LOC_WEAPONS },
+
+	&(task_t) { TASK_SHIELDS_WIRES, "Fix wiring", LOC_SHIELDS },
+	&(task_t) { TASK_SHIELDS_CALIBRATE, "Calibrate shields", LOC_SHIELDS },
+
+	&(task_t) { TASK_O2_WIRES, "Fix wiring", LOC_O2 },
+	&(task_t) { TASK_O2_CLEAN, "Clean oxygen filter", LOC_O2 },
+	&(task_t) { TASK_O2_WATER, "Water plants", LOC_O2 },
+
+	&(task_t) { TASK_MEDBAY_WIRES, "Fix wiring", LOC_MEDBAY },
+	&(task_t) { TASK_MEDBAY_SCAN, "Scan", LOC_MEDBAY },
+
+	&(task_t) { TASK_UPPER_CATALYZER, "Check catalyzer", LOC_UPPER_ENGINE },
+	&(task_t) { TASK_UPPER_COIL, "Replace compression coil", LOC_UPPER_ENGINE },
+
+	&(task_t) { TASK_LOWER_CATALYZER, "Check catalyzer", LOC_LOWER_ENGINE },
+	&(task_t) { TASK_LOWER_COIL, "Replace compression coil", LOC_LOWER_ENGINE }
 };
 
 /* Get a task structure by its ID. */

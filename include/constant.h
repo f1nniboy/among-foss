@@ -13,4 +13,4 @@
 
 /* Game */
 #define KILL_COOLDONW  5 /* How many rooms the impostor has to move through, to be able to kill someone again */
-#define TASK_AMOUNT    2 /* How many tasks each player should receive */
+#define TASK_AMOUNT   10 /* How many tasks each player should receive */
