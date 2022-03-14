@@ -38,6 +38,6 @@ They may *overlap* with normal packet status codes.
 | ID  | Name         | Description                                             |
 | --  | ------------ | ------------------------------------------------------- |
 | `0` | Full         | The game is full and the client cannot join, **unused** |
-| `0` | Running      | The game has started and is currently running           |
-| `0` | Impostor Win | The impostor won the game                               |
-| `0` | Crewmate Win | The crewmates won the game                              |
+| `1` | Running      | The game has started and is currently running           |
+| `2` | Impostor Win | The impostor won the game                               |
+| `3` | Crewmate Win | The crewmates won the game                              |
