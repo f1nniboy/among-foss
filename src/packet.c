@@ -100,9 +100,7 @@ void packet_command(client_t *client, struct json_object *args) {
 	}
 
 end:
-	if(status != PACKET_STATUS_OK)
-		send_basic_packet(client->id, PACKET_COMMAND, status);
-
+	send_basic_packet(client->id, PACKET_COMMAND, status);
 	#undef is_command
 }
 

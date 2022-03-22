@@ -1,6 +1,6 @@
 CC?     = cc
 CFLAGS += $(shell pkg-config --cflags json-c) -Iinclude
-LIBS   += $(shell pkg-config --libs json-c)
+LIBS   += $(shell pkg-config --libs json-c) -lpthread
 SRCS   := $(wildcard src/*.c)
 BUILD   = build
 NAME   := among-foss
@@ -26,4 +26,4 @@ uninstall:
 	rm -f $(DESTDIR)/$(PREFIX)/bin/$(NAME)
 
 clean:
-	rm -rf build
+	rm -r $(BUILD)

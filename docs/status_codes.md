@@ -19,7 +19,7 @@ You can find the **IDs**, **names** and **descriptions** for packet status codes
 | --  | -------------- | ------------------------------------------ |
 | `4` | Not in Game    | The client needs to be playing the game.   |
 | `5` | Wrong Role     | The client does not have the correct role. |
-| `5` | Wrong Location | The client is in the wrong location.       |
+| `6` | Wrong Location | The client is in the wrong location.       |
 
 ## Other
 You can find another type of packet status codes below.
