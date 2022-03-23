@@ -19,4 +19,4 @@ $ ./build/among-foss
 This will *start a server* on the port `1234`. After the server has started, players may connect to it.
 
 ## Clients
-No fully functional clients have been made for `among-foss` *yet*. Be the first to make one!
+**[Raniconduh/sus-ui](https://github.com/Raniconduh/sus-ui)** ➔ *TUI client*

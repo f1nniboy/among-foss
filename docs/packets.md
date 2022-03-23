@@ -141,7 +141,7 @@ After this, the client has to *keep track of the completed tasks themselves*.
 
 ### `6` ➔ Command
 This will run the `start_game` command.
-The server will respond with a packet of the same type, if the command executed *unsuccessfully*.
+The server will respond with a packet of the same type.
 
 ```json
 {
