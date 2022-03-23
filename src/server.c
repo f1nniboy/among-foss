@@ -74,6 +74,5 @@ void start_server(uint16_t port) {
 
 /* Shut down the current server. */
 void stop_server(int code) {
-	msg_info("Shutting down the server.");
 	exit(code > 1 ? 0 : code);
 }
