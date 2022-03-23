@@ -127,10 +127,11 @@ retry:
 		/* Assign the task. */
 		client->tasks[i] = task_id;
 
+		location_t *location = get_location_by_id(task->location);
 		struct json_object *task_object = json_object_new_object();
 
 		json_object_object_add(task_object, "description", json_object_new_string(task->description));
-		json_object_object_add(task_object, "location", json_object_new_int(task->location));
+		json_object_object_add(task_object, "location", json_object_new_string(location->name));
 
 		/* Add the task to the JSON array. */
 		json_object_array_add(args, task_object);

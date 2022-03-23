@@ -102,14 +102,11 @@ void send_room_info(enum location_id location_id, int id) {
 void notify_movement(enum location_id location_id, int state, int id) {
 	client_for_each(cli)
 		/* Don't send the packet to clients, which are not in the room. */
-		if((state == PACKET_CLIENT_INFO_ROOM_ENTER && cli->location != location_id) || cli->id == id)
-			return;
+		if(cli->id == id || cli->location != location_id)
+			continue;
 
 		struct json_object *client_object = json_object_new_object();
-
-		/* Add the client's information to the object. */
 		json_object_object_add(client_object, "id", json_object_new_int(cli->id));
-		json_object_object_add(client_object, "name", json_object_new_string(cli->name));
 
 		/* Send the packet to the client. */
 		send_packet(cli->id, PACKET_CLIENT_INFO, state, client_object);
