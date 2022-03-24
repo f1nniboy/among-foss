@@ -15,7 +15,7 @@
 	for(int i = 0; i < NUM_CLIENTS; ++i) {                 \
 		client_t *var = clients[i];                        \
 		                                                   \
-		if(var == NULL || var->state == CLIENT_STATE_NAME) \
+		if(var == NULL || var->stage == CLIENT_STAGE_NAME) \
 			continue;
 
 /* Client roles */
@@ -24,16 +24,16 @@ enum client_role {
 	CLIENT_ROLE_IMPOSTOR
 };
 
-/* Client states */
-enum client_state {
+/* Client stages */
+enum client_stage {
 	/* Choosing a name */
-	CLIENT_STATE_NAME,
+	CLIENT_STAGE_NAME,
 
 	/* In the lobby */
-	CLIENT_STATE_LOBBY,
+	CLIENT_STAGE_LOBBY,
 
 	/* In the game */
-	CLIENT_STATE_MAIN
+	CLIENT_STAGE_MAIN
 };
 
 /* Client structure */
@@ -46,7 +46,7 @@ typedef struct client {
 	char name[NAME_LEN_MAX + 1]; /* Name of the client */
 
 	int alive;                   /* Whether the client is still alive */
-	enum client_state state;     /* Current state of the client */
+	enum client_stage stage;     /* Current stage of the client */
 	enum client_role role;       /* Game role of the client */
 	enum location_id location;   /* Current location on the map */
 
@@ -54,7 +54,7 @@ typedef struct client {
 	int tasks_done[TASK_AMOUNT]; /* Array, corresponding to the task array, which contains whether a task has been completed */
 } client_t;
 
-#define is_in_game(client) (client->state == CLIENT_STATE_MAIN && state->state == GAME_STATE_MAIN)
+#define is_in_game(client) (client->stage == CLIENT_STAGE_MAIN && state->state == GAME_STATE_MAIN)
 
 /* Get a client by its ID. */
 client_t *get_client_by_id(int id);
@@ -72,7 +72,7 @@ void broadcast_client_status(int id, int status);
 void disconnect_client(int id);
 
 /* Set a variety of information about a client and notify them about the change. */
-void set_state(enum client_state state, enum client_role role, int alive, int id);
+void set_state(enum client_stage stage, enum client_role role, int alive, int id);
 
 /* Send a message to the specified client. */
 void send_msg(char *str, int id);

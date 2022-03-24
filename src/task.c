@@ -61,23 +61,6 @@ task_t *get_task_by_id(enum task_id id) {
 	return NULL;
 }
 
-/* Get a task structure by its description. */
-task_t *get_task_by_description(char *description) {
-	for(int i = 0; i < LOC_COUNT; ++i) {
-		task_t *task = get_task_by_id(i);
-
-		/* Continue with the next task, if it doesn't exist. */
-		if(task == NULL)
-			continue;
-
-		/* If the description matches, return the task structure. */
-		if(strcmp(description, task->description) == 0)
-			return task;
-	}
-
-	return NULL;
-}
-
 /* Check whether all clients have completed their tasks. */
 int check_tasks() {
 	client_for_each(client)
@@ -128,13 +111,7 @@ retry:
 		client->tasks[i] = task_id;
 
 		location_t *location = get_location_by_id(task->location);
-		struct json_object *task_object = json_object_new_object();
-
-		json_object_object_add(task_object, "description", json_object_new_string(task->description));
-		json_object_object_add(task_object, "location", json_object_new_string(location->name));
-
-		/* Add the task to the JSON array. */
-		json_object_array_add(args, task_object);
+		json_object_array_add(args, json_object_new_int(task_id));
 	}
 
 	/* Send the packet. */

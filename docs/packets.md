@@ -3,28 +3,30 @@ You can find the **IDs**, **names**, **descriptions** and **examples** for packe
 
 ## Information
 ### `Server` ➔ `Client`
-| ID  | Name        | Description                          |
-| --  | ----------- | ------------------------------------ |
-| `0` | Info        | Information about the server         |
-| `1` | Client Info | Information about a client           |
-| `2` | Game Status | State and winner of the current game |
-| `3` | Room Info   | Information about the current room   |
-| `4` | State       | The current state of the client      |
-| `5` | Tasks       | A list of tasks the client has to do |
+| ID  | Name        | Description                           |
+| --  | ----------- | ------------------------------------- |
+| `0` | Info        | Information about the server          |
+| `1` | Client Info | Information about a client            |
+| `2` | Game Status | State and winner of the current game  |
+| `3` | Room Info   | Information about the current room    |
+| `4` | State       | The current state of the client       |
+| `5` | Tasks       | A list of tasks the client has to do  |
+| `6` | Data        | Information about tasks and locations |
 
 ### `Client` ➔ `Server`
-| ID  | Name     | Description                  |
-| --  | -------- | ---------------------------- |
-| `6` | Command  | Run a command.               |
-| `7` | Name     | Set the client's name.       |
-| `8` | Location | Set the location on the map. |
+| ID   | Name     | Description                     |
+| ---- | -------- | ------------------------------- |
+| `7`  | Command  | Run a command.                  |
+| `8`  | Name     | Set the client's name.          |
+| `9`  | Location | Set the location on the map.    |
+| `10` | Kill     | Kill a client, as the impostor. |
 
 ### `Client` ⬌ `Server`
 | ID   | Name    | Description                          |
 | ---- | ------- | ------------------------------------ |
-| `9`  | Clients | Request a list of connected clients. |
-| `10` | Chat    | Send a chat message.                 |
-| `11` | Task    | Complete a task.                     |
+| `11` | Clients | Request a list of connected clients. |
+| `12` | Chat    | Send a chat message.                 |
+| `13` | Task    | Complete a task.                     |
 
 ## Examples
 This contains examples for packets sent from the *client to the server*, *the other way around* and packets only sent *by the server*.
@@ -100,14 +102,14 @@ The client receives this packet after a *successful* `Location` *packet call*.
 ```
 
 ### `4` ➔ State
-This packet exchanges a variety of information with the client, e.g. the *role*, the *current state* and whether the client is still *alive*.
+This packet exchanges a variety of information with the client, e.g. the *role*, the *current stage* and whether the client is still *alive*.
 Fields, which *have not changed since the last time*, will be omitted.
 
 **`Role`**
 `0` ➔ `Crewmate`
 `1` ➔ `Impostor`
 
-**`State`**
+**`Stage`**
 `0` ➔ `Name`
 `1` ➔ `Lobby`
 `2` ➔ `Main`
@@ -115,7 +117,7 @@ Fields, which *have not changed since the last time*, will be omitted.
 ```json
 {
 	"arguments": {
-		"state": 2,
+		"stage": 2,
 		"role": 1,
 		"alive": 1
 	}
@@ -130,8 +132,8 @@ After this, the client has to *keep track of the completed tasks themselves*.
 {
 	"arguments": {
 		{
-			"description": "Fix wiring",
-			"location": "Cafeteria"
+			"id": 3,
+			"loc": 1
 		},
 
 		...
@@ -139,7 +141,33 @@ After this, the client has to *keep track of the completed tasks themselves*.
 }
 ```
 
-### `6` ➔ Command
+### `6` ➔ Data
+This packet will be *after the client has authenticated* and contains the **names of locations** and **descriptions and locations of tasks**.
+The index of the tasks and locations correspond to their ID.
+
+```json
+{
+	"arguments": {
+		"tasks": [
+			{
+				"desc": "Empty trash",
+				"loc": 0
+			},
+			...
+		],
+
+		"locations": [
+			{
+				"name": "Cafeteria",
+				"doors": [ 5, 8, 11 ]
+			},
+			...
+		]
+	}
+}
+```
+
+### `7` ➔ Command
 This will run the `start_game` command.
 The server will respond with a packet of the same type.
 
@@ -151,7 +179,7 @@ The server will respond with a packet of the same type.
 }
 ```
 
-### `7` ➔ Name
+### `8` ➔ Name
 This will set the client's name to `Test`. The client's name can only be set **once** and may *only contain ASCII characters*.
 
 ```json
@@ -162,18 +190,29 @@ This will set the client's name to `Test`. The client's name can only be set **o
 }
 ```
 
-### `8` ➔ Location
+### `9` ➔ Location
 This will set the client's location to `Cafeteria`. The location must be *adjacent to the current one*.
 
 ```json
 {
 	"arguments": {
-		"name": "Cafeteria"
+		"id": 0
 	}
 }
 ```
 
-### `9` ➔ Clients
+### `10` ➔ Kill
+This packet can be sent by an impostor to kill the specified client.
+
+```json
+{
+	"arguments": {
+		"id": 0
+	}
+}
+```
+
+### `11` ➔ Clients
 ```json
 {
 	"arguments": [
@@ -189,7 +228,7 @@ This will set the client's location to `Cafeteria`. The location must be *adjace
 }
 ```
 
-### `10` ➔ Chat
+### `12` ➔ Chat
 The sent packet will be broadcasted to all other clients, as long as it only *contains ASCII characters*.
 The broadcasted packet will contain a `id` field, to specify which player sent it.
 
@@ -202,14 +241,14 @@ The broadcasted packet will contain a `id` field, to specify which player sent i
 }
 ```
 
-### `11` ➔ Task
+### `13` ➔ Task
 This packet can be sent by the client to complete the specified task.
-The server will respond with the same packet type, and a status code.
+The server will respond with the same packet, and a status code.
 
 ```json
 {
 	"arguments": {
-		"description": "Fix wiring"
+		"id": 3
 	}
 }
 ```

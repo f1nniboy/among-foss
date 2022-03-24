@@ -43,6 +43,10 @@ int start_game() {
 		return PACKET_STATUS_AGAIN;
 	}
 
+	/* Initialize the variables. */
+	state->impostor_id = -1;
+	
+	/* Update the game status. */
 	set_game_status(GAME_STATE_MAIN, -1);
 
 	/* Choose a random impostor. */
@@ -51,17 +55,19 @@ int start_game() {
 	/* Assign the roles and set default values for all clients. */
 	client_for_each(client)
 		/* Set the state. */
-		set_state(CLIENT_STATE_MAIN,
+		set_state(CLIENT_STAGE_MAIN,
 			impostor_id == i ? CLIENT_ROLE_IMPOSTOR : CLIENT_ROLE_CREWMATE,
 			1, client->id);
 
 		/* Set the location. */
 		set_location(LOC_CAFETERIA, client->id);
 
+		/* Update the impostor ID, if it matches. */
+		if (impostor_id == i)
+			state->impostor_id = client->id;
+
 		/* Assign the client some tasks. */
 		assign_tasks(client->id);
-
-		if(client->id == impostor_id) state->impostor_id = client->id;
 	}
 
 	/* Send every client information about the initial room. */
@@ -126,10 +132,10 @@ end:
 
 /* End the game, with the specified winner. */
 void end_game(enum client_role role) {
-	/* Reset the values. */
+	/* Reset the variables. */
 	state->impostor_id = -1;
 
-	/* Set the game status back to the lobby. */
+	/* Reset the game status again. */
 	set_game_status(GAME_STATE_LOBBY, role);
 
 	msg_info("The game has ended.", client_count);

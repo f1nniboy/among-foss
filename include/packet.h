@@ -12,11 +12,13 @@ enum PACKET_ID {
 	PACKET_ROOM_INFO,
 	PACKET_STATE,
 	PACKET_TASKS,
+	PACKET_DATA,
 
 	/* Incoming, sent from the client */
 	PACKET_COMMAND,
 	PACKET_NAME,
 	PACKET_LOCATION,
+	PACKET_KILL,
 
 	/* Both, sent from and to the client */
 	PACKET_CLIENTS,
@@ -102,6 +104,7 @@ void packet_command(client_t *client, struct json_object *args);
 void packet_chat(client_t *client, struct json_object *args);
 void packet_location(client_t *client, struct json_object *args);
 void packet_task(client_t *client, struct json_object *args);
+void packet_kill(client_t *client, struct json_object *args);
 
 /* Handle a packet sent by the specified client.
    Returns whether the packet was handled successfully. */

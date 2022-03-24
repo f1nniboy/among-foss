@@ -34,47 +34,21 @@ location_t *get_location_by_id(enum location_id id) {
 	return NULL;
 }
 
-/* Get a location structure by its name. */
-location_t *get_location_by_name(char *name) {
-	for(int i = 0; i < LOC_COUNT; ++i) {
-		location_t *location = get_location_by_id(i);
-
-		/* Continue with the next location, if it doesn't exist. */
-		if(location == NULL)
-			continue;
-
-		/* If the name matches, return the location structure. */
-		if(strcmp(name, location->name) == 0)
-			return location;
-	}
-
-	return NULL;
-}
-
 /* Send the room information to the specified client. */
 void send_room_info(enum location_id location_id, int id) {
 	client_t *client = get_client_by_id(id);
 
 	/* Check whether the client is in the game and a game is currently running. */
-	if(client->state != CLIENT_STATE_MAIN || state->state != GAME_STATE_MAIN)
+	if(client->stage != CLIENT_STAGE_MAIN || state->state != GAME_STATE_MAIN)
 		return send_basic_packet(id, PACKET_ROOM_INFO, PACKET_STATUS_NOT_IN_GAME); 
 
 	location_t *location = get_location_by_id(location_id);
 	struct json_object *args = json_object_new_object();
 
 	struct json_object *client_array = json_object_new_array();
-	struct json_object *door_array   = json_object_new_array();
 
-	/* Room name */
-	json_object_object_add(args, "name", json_object_new_string(location->name));
-
-	/* Doors */
-	for (int i = 0; i < location->door_count; i++) {
-		enum location_id door_id = location->doors[i];
-		location_t *door = get_location_by_id(door_id);
-
-		json_object_array_add(door_array, json_object_new_string(door->name));
-	}
+	/* Room ID */
+	json_object_object_add(args, "id", json_object_new_int(location->id));
 
 	/* Clients */
 	client_for_each(cli)
@@ -90,7 +64,6 @@ void send_room_info(enum location_id location_id, int id) {
 		json_object_array_add(client_array, client_info);
 	}
 	
-	json_object_object_add(args, "doors", door_array);
 	json_object_object_add(args, "clients", client_array);
 
 	/* Send the packet. */

@@ -17,13 +17,14 @@ handler_t handlers[PACKET_COUNT] = {
 	[PACKET_COMMAND]  = packet_command,
 	[PACKET_CHAT]     = packet_chat,
 	[PACKET_LOCATION] = packet_location,
-	[PACKET_TASK]     = packet_task
+	[PACKET_TASK]     = packet_task,
+	[PACKET_KILL]     = packet_kill
 };
 
 /* When a client sends the server their name */
 void packet_name(client_t *client, struct json_object *args) {
 	/* Make sure that the client hasn't set their name already. */
-	if(client->state != CLIENT_STATE_NAME)
+	if(client->stage != CLIENT_STAGE_NAME)
 		return send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_AGAIN);
 
 	/* Chosen client name */
@@ -43,7 +44,7 @@ void packet_name(client_t *client, struct json_object *args) {
 			return send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_INVALID);
 
 	/* Update the client's name and stage. */
-	client->state = CLIENT_STATE_LOBBY;
+	client->stage = CLIENT_STAGE_LOBBY;
 	strcpy(client->name, name);
 
 	msg_info("Client #%d is now known as '%s'.", client->id, client->name);
@@ -51,6 +52,54 @@ void packet_name(client_t *client, struct json_object *args) {
 	/* Notify other clients, that the client has joined the game. */
 	broadcast_client_status(client->id, PACKET_CLIENT_INFO_JOIN);
 	send_basic_packet(client->id, PACKET_NAME, PACKET_STATUS_OK);
+
+	/* Send information about tasks and locations to the client, after authenticating successfully. */
+	struct json_object *data_object = json_object_new_object();
+
+	/* Tasks */
+	struct json_object *task_array = json_object_new_array();
+
+	for (int i = 0; i < TASK_COUNT; ++i) {
+		task_t *task         = get_task_by_id(i);
+		location_t *location = get_location_by_id(task->location);
+		
+		struct json_object *task_object = json_object_new_object();
+
+		json_object_object_add(task_object, "desc", json_object_new_string(task->description));
+		json_object_object_add(task_object, "loc", json_object_new_int(location->id));
+
+		/* Add the task to the JSON array. */
+		json_object_array_put_idx(task_array, i, task_object);
+	}
+
+	/* Locations */
+	struct json_object *location_array = json_object_new_array();
+
+	for (int i = 0; i < LOC_COUNT; ++i) {
+		location_t *location = get_location_by_id(i);
+
+		struct json_object *location_object = json_object_new_object();
+		struct json_object *door_array      = json_object_new_array();
+
+		json_object_object_add(location_object, "name", json_object_new_string(location->name));
+
+		/* Doors */
+		for (int i = 0; i < location->door_count; i++) {
+			enum location_id door_id = location->doors[i];
+			location_t *door = get_location_by_id(door_id);
+
+			json_object_array_put_idx(door_array, i, json_object_new_int(door->id));
+		}
+
+		/* Add the location to the JSON array. */
+		json_object_object_add(location_object, "doors", door_array);
+		json_object_array_put_idx(location_array, i, location_object);
+	}
+
+	json_object_object_add(data_object, "tasks", task_array);
+	json_object_object_add(data_object, "locations", location_array);
+
+	send_packet(client->id, PACKET_DATA, PACKET_STATUS_OK, data_object);
 }
 
 /* When a client requests the client list from the server */
@@ -61,10 +110,6 @@ void packet_clients(client_t *client, struct json_object *args) {
 	client_for_each(cli)
 		/* Don't add the requesting client to the client list. */
 		if(client->id == cli->id)
-			continue;
-
-		/* Don't add clients, who haven't chosen their name yet, to the client list. */
-		if(cli->state == CLIENT_STATE_NAME)
 			continue;
 
 		struct json_object *client_object = json_object_new_object();
@@ -115,6 +160,10 @@ void packet_chat(client_t *client, struct json_object *args) {
 		if(content == NULL)
 			return send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_INVALID);
 
+		/* Make sure that the message isn't empty and doesn't exceed the character limit. */
+		if(strlen(content) == 0 || strlen(content) > CHAT_LEN_MAX)
+			return send_basic_packet(client->id, PACKET_CHAT, PACKET_STATUS_WRONG_LENGTH);
+
 		/* Validate the message. */
 		for(int i = 0; i < strlen(content); i++)
 			if(!isprint(content[i]))
@@ -140,15 +189,11 @@ void packet_location(client_t *client, struct json_object *args) {
 	if(!is_in_game(client))
 		return send_basic_packet(client->id, PACKET_LOCATION, PACKET_STATUS_NOT_IN_GAME);
 
-	/* Location name */
-	char *name; get_string_arg(name, "name");
-
-	/* Make sure that a valid name was specified. */
-	if(name == NULL)
-		return send_basic_packet(client->id, PACKET_LOCATION, PACKET_STATUS_INVALID);
+	/* Location ID */
+	int id; get_int_arg(id, "id");
 
 	/* Get the specified location. */
-	location_t *new_location = get_location_by_name(name);
+	location_t *new_location = get_location_by_id(id);
 
 	/* Make sure that the location is valid. */
 	if(new_location == NULL)
@@ -172,23 +217,31 @@ void packet_task(client_t *client, struct json_object *args) {
 	if(state->impostor_id == client->id)
 		return send_basic_packet(client->id, PACKET_TASK, PACKET_STATUS_WRONG_ROLE);
 
-	/* Task description */
-	char *description; get_string_arg(description, "description");
+	/* Task ID */
+	int task_id; get_int_arg(task_id, "id");
 
-	/* Make sure that a valid task description was specified. */
-	if(description == NULL)
-		return send_basic_packet(client->id, PACKET_TASK, PACKET_STATUS_INVALID);
-
-	/* Get the task by its description. */
-	task_t *task = get_task_by_description(description);
+	/* Get the task by its ID. */
+	task_t *task = get_task_by_id(task_id);
 
 	/* Make sure that a valid task was specified. */
 	if(task == NULL)
 		return send_basic_packet(client->id, PACKET_TASK, PACKET_STATUS_INVALID);
 
-	/* Try to complete the task for the client. */
+	/* Try to complete the specified task. */
 	int status = do_task(task->id, client->id);
 	send_basic_packet(client->id, PACKET_TASK, status);
+}
+
+/* When an impostor tries to kill a client */
+void packet_kill(client_t *client, struct json_object *args) {
+	/* Make sure that the client is in the game. */
+	if(!is_in_game(client))
+		return send_basic_packet(client->id, PACKET_KILL, PACKET_STATUS_NOT_IN_GAME);
+
+	/* Client to kill */
+	int target_id; get_int_arg(target_id, "id");
+
+	/* TODO: Implement */
 }
 
 
@@ -255,7 +308,7 @@ int handle_packet(int id, int type, struct json_object *args) {
 
 	/* Don't handle any packets except the NAME packet for clients,
 	   who have not authenticated yet. */
-	if(client->state == CLIENT_STATE_NAME && type != PACKET_NAME)
+	if(client->stage == CLIENT_STAGE_NAME && type != PACKET_NAME)
 		return 0;
 
 	handler_t handler = handlers[type];

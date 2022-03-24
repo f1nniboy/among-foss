@@ -59,7 +59,7 @@ void broadcast_client_status(int id, int status) {
 	if(client == NULL) return;
 
 	/* Only broadcast the status for players who have set their name. */
-	if(client->state == CLIENT_STATE_NAME)
+	if(client->stage == CLIENT_STAGE_NAME)
 		return;
 
 	struct json_object *client_object = json_object_new_object();
@@ -95,7 +95,7 @@ void disconnect_client(int id) {
 }
 
 /* Set a variety of information about a client and notify them about the change. */
-void set_state(enum client_state state, enum client_role role, int alive, int id) {
+void set_state(enum client_stage stage, enum client_role role, int alive, int id) {
 	client_t *client = get_client_by_id(id);
 	if(client == NULL) return;
 
@@ -108,7 +108,7 @@ void set_state(enum client_state state, enum client_role role, int alive, int id
 		}
 
 	/* Add the client's information to the object. */
-	add("state", state);
+	add("stage", stage);
 	add("role", role);
 	add("alive", alive);
 
@@ -133,7 +133,7 @@ void send_msg(char *str, int id) {
 void send_global_msg(char *str, int sender_id) {
 	client_for_each(client)
 		/* Make sure that the client slot is taken. */
-		if(client && client->state != CLIENT_STATE_NAME && client->id != sender_id)
+		if(client && client->stage != CLIENT_STAGE_NAME && client->id != sender_id)
 			send_msg(str, client->id);
 	}
 }
@@ -153,8 +153,8 @@ void *handle_client(void *arg) {
 	msg_info("Client #%d has connected.", client->id);
 	client_count++;
 
-	/* Set the client's state. */
-	client->state = CLIENT_STATE_NAME;
+	/* Set the client's stage. */
+	client->stage = CLIENT_STAGE_NAME;
 
 	/* Send information about the server to the client. */
 	send_packet_with_string_pair(client->id, PACKET_INFO, PACKET_STATUS_OK, "version", VERSION);
@@ -170,6 +170,9 @@ void *handle_client(void *arg) {
 		/* Make sure that the buffer is not empty. */
 		if(!strlen(buff))
 			continue;
+
+		/* Log the message to the console. */
+		msg_info("%d -> %s", client->id, buff);
 
 		/* Try to parse the message as a packet. */
 		parse_packet(client->id, buff);
