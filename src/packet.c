@@ -229,7 +229,7 @@ void packet_task(client_t *client, struct json_object *args) {
 
 	/* Try to complete the specified task. */
 	int status = do_task(task->id, client->id);
-	send_basic_packet(client->id, PACKET_TASK, status);
+	send_packet_with_int_pair(client->id, PACKET_TASK, status, "id", task_id);
 }
 
 /* When an impostor tries to kill a client */

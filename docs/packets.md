@@ -82,17 +82,15 @@ The field may have the following values:
 ```
 
 ### `3` ➔ Room Info
-The client receives this packet after a *successful* `Location` *packet call*.
+The client receives this packet after a *successful* `Location` packet call.
 
 ```json
 {
 	"arguments": {
-		"name": "Cafeteria",
-		"doors": {
-			"MedBay",
-			"Weapons",
-			"Admin"
-		},
+		"id": 0,
+		"doors": [
+			5, 11, 8
+		],
 		"clients": {
 			{ "id": 0, "alive": true },
 			{ "id": 1, "alive": false }
@@ -142,7 +140,7 @@ After this, the client has to *keep track of the completed tasks themselves*.
 ```
 
 ### `6` ➔ Data
-This packet will be *after the client has authenticated* and contains the **names of locations** and **descriptions and locations of tasks**.
+This packet will sent be *after the client has authenticated* and contains the **names of locations** and **descriptions and locations of tasks**.
 The index of the tasks and locations correspond to their ID.
 
 ```json
