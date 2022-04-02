@@ -79,7 +79,7 @@ void notify_movement(enum location_id location_id, int state, int id) {
 			continue;
 
 		struct json_object *client_object = json_object_new_object();
-		json_object_object_add(client_object, "id", json_object_new_int(cli->id));
+		json_object_object_add(client_object, "id", json_object_new_int(id));
 
 		/* Send the packet to the client. */
 		send_packet(cli->id, PACKET_CLIENT_INFO, state, client_object);
