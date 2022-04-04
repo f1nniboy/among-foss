@@ -38,7 +38,7 @@ enum client_stage {
 
 /* Client structure */
 typedef struct client {
-	struct sockaddr_in addr;     /* Client remote address */
+	struct sockaddr_in6 addr;     /* Client remote address */
 	int connected;               /* Whether the connection is active */
 	int id;                      /* Unique client identifier */
 	int fd;                      /* Connection file descriptor */

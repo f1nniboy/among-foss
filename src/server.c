@@ -1,3 +1,5 @@
+#include <poll.h>
+
 #include "constant.h"
 #include "client.h"
 #include "server.h"
@@ -17,17 +19,18 @@ int last_id = 0;
 /* Start a server on the specified port. */
 void start_server(uint16_t port) {
 	int listen_fd = 0, conn_fd = 0;
-	struct sockaddr_in server_addr;
-	struct sockaddr_in client_addr;
-	pthread_t tid;
-
-	listen_fd = socket(AF_INET, SOCK_STREAM, 0);
 
 	/* Socket settings */
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	server_addr.sin_port = htons(port);
-	
+	struct sockaddr_in6 server_addr = {
+		.sin6_family = AF_INET6,
+		.sin6_addr = IN6ADDR_ANY_INIT,
+		.sin6_port = htons(port)
+	};
+	struct sockaddr_in6 client_addr;
+	pthread_t tid;
+
+	listen_fd = socket(AF_INET6, SOCK_STREAM, 0);
+
 	/* Ignore pipe signals. */
 	signal(SIGPIPE, SIG_IGN);
 	
@@ -51,9 +54,15 @@ void start_server(uint16_t port) {
 	/* Set up the signals. */
 	signal(SIGINT, stop_server);
 
+	struct pollfd pfd[] = {{
+		.fd = listen_fd,
+		.events = POLLIN
+	}};
+
+	socklen_t client_addr_len = sizeof(client_addr);
+
 	/* Accept any incoming connections. */
-	while(1) {
-		socklen_t client_addr_len = sizeof(client_addr);
+	while ((poll(pfd, 1, -1) != -1)) {
 		conn_fd = accept(listen_fd, (struct sockaddr *) &client_addr, &client_addr_len);
 
 		client_t *client = (client_t *) malloc(sizeof(client_t));
@@ -66,10 +75,9 @@ void start_server(uint16_t port) {
 		/* Add the client to the queue and create a new thread for the handling of messages. */
 		add_client_to_queue(client);
 		pthread_create(&tid, NULL, &handle_client, (void *) client);
-
-		/* Reduce the CPU usage, by waiting for 100ms. */
-		usleep(100 * 1000);
 	}
+
+	msg_die("Failed to poll for connections.");
 }
 
 /* Shut down the current server. */

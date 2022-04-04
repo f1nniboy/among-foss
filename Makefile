@@ -1,4 +1,4 @@
-CC?     = cc
+CC     ?= cc
 CFLAGS += $(shell pkg-config --cflags json-c) -Iinclude
 LIBS   += $(shell pkg-config --libs json-c) -lpthread
 SRCS   := $(wildcard src/*.c)
@@ -8,9 +8,9 @@ OBJS   := $(patsubst src/%.c,build/%.o,$(SRCS))
 PREFIX ?= /usr/local
 
 .PHONY: all install uninstall clean
-all: build $(NAME)
+all: $(BUILD) $(NAME)
 
-build:
+$(BUILD):
 	mkdir -p $(BUILD)
 
 $(NAME): $(OBJS)
