@@ -31,9 +31,11 @@ void start_server(uint16_t port) {
 
 	listen_fd = socket(AF_INET6, SOCK_STREAM, 0);
 
+	setsockopt(listen_fd, IPPROTO_IPV6, IPV6_V6ONLY, &(int){0}, sizeof(int));
+
 	/* Ignore pipe signals. */
 	signal(SIGPIPE, SIG_IGN);
-	
+
 	/* Bind the socket. */
 	if (bind(listen_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0)
 		msg_die("Failed to bind socket.");
@@ -45,7 +47,7 @@ void start_server(uint16_t port) {
 	/* Listen on the socket. */
 	if (listen(listen_fd, 10) < 0)
 		msg_die("Failed to listen on socket.");
-	
+
 	msg_info("Started the server on port " ANSI_COLOR_BOLD "%d" ANSI_COLOR_RESET ".", port);
 
 	/* Initialize the game state. */
