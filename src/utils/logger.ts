@@ -21,7 +21,7 @@ export class Logger {
 	 * @param level Log level
 	 * @param message Message to log to the console
 	 */
-	public static log(level: LogLevel, message: LogType[]): void {
+	public static log(level: LogLevel, message: LogType[]) {
 		const status = colors.bold(colors.rgb24(level.name, level.color));
 		const line = `${status} ${colors.gray("»")}`;
 

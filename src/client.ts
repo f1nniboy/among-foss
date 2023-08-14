@@ -1,7 +1,7 @@
-import { PacketError } from "./packet/error.ts";
 import { type PacketSendOptions } from "./packet/mod.ts";
-import { server } from "./server.ts";
+
 import { connToString } from "./utils/ip.ts";
+import { server } from "./server.ts";
 
 export enum ClientState {
     /** The client has connected, but not chosen a name yet */
@@ -33,13 +33,13 @@ export class Client {
     }
 
     /** Set the name of the client. */
-    public setName(name: string): void {
-        if (this.name !== null) throw new PacketError("NICK_ALREADY_SET");
+    public setName(name: string) {
         this.name = name;
+        this.state = ClientState.Connected;
     }
 
     /** Send a packet to this client. */
-    public send(options: Omit<PacketSendOptions, "client">): void {
+    public send(options: Omit<PacketSendOptions, "client">) {
         server.send({ client: this, ...options });
     }
 
@@ -50,5 +50,9 @@ export class Client {
 
     public get ip(): string {
         return connToString(this.conn); 
+    }
+
+    public get active(): boolean {
+        return this.state === ClientState.Connected;
     }
 }
