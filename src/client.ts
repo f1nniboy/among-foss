@@ -1,41 +1,107 @@
 import { type PacketSendOptions } from "./packet/mod.ts";
 
 import { connToString } from "./utils/ip.ts";
+import { Loc } from "./game/location.ts";
 import { server } from "./server.ts";
+import { Room, RoomNotifyType } from "./room.ts";
+import { PacketError } from "./packet/error.ts";
 
 export enum ClientState {
     /** The client has connected, but not chosen a name yet */
-    Connecting,
+    Idle = "IDLE",
 
-    /** The client is connected */
-    Connected
+    /** The client is connected & in the lobby, searching for a room */
+    InLobby = "LOBBY",
+
+    /** The client is connected & in a room */
+    InRoom = "ROOM"
+}
+
+export enum ClientRole {
+    Crewmate = "CREWMATE",
+    Impostor = "IMPOSTOR",
+    Spectator = "SPECTATOR",
+    None = "NONE"
 }
 
 export class Client {
     /** The internal Deno connection */
     public readonly conn: Deno.Conn;
 
+    /** The name of the client, if already set */
+    public name: string;
+
+    /** ID of the client */
+    public readonly id: number;
+
     /** Current state of the client */
     public state: ClientState;
 
-    /** The name of the client, if already set */
-    public name: string | null;
+    /** Role of the client */
+    public role: ClientRole;
 
-    /* ID of the client */
-    public readonly id: number;
+    /** Location of the client */
+    public location: Loc;
+
+    /** Which room the client is in */
+    public room: Room | null;
 
     constructor(conn: Deno.Conn, id: number) {
         this.conn = conn;
         this.id = id;
 
-        this.state = ClientState.Connecting;
-        this.name = null;
+        this.location = Loc.Cafeteria;
+        this.state = ClientState.Idle;
+        this.role = ClientRole.None;
+        this.name = null!;
+        this.room = null;
+    }
+
+    /** Join a room. */
+    public join(room: Room) {
+        if (this.room !== null) throw new PacketError("ALREADY_IN_ROOM");
+        if (room.running) throw new PacketError("ALREADY_RUNNING");
+        
+        this.room = room;
+        this.room.notify(this, RoomNotifyType.Join);
+
+        this.send({
+            name: "ROOM", args: [
+                room.code, room.visibility
+            ]
+        });
+    }
+
+    /** Leave the current room. */
+    public leave() {
+        if (this.room === null) throw new PacketError("NOT_IN_ROOM");
+
+        this.room.notify(this, RoomNotifyType.Leave);
+        this.room = null;
+
+        this.send({ name: "OK" });
+    }
+
+    /** Change the role of the client. */
+    public setRole(role: ClientRole) {
+        if (this.room === null) throw new PacketError("NOT_IN_LOBBY");
+
+        this.role = role;
+        this.send({ name: "PLAYER", args: [ "ROLE", role ] });
+    }
+
+    /** Change the location of the client. */
+    public setLocation(location: Loc) {
+        if (this.room === null) throw new PacketError("NOT_IN_LOBBY");
+
+        this.location = location;
+        this.send({ name: "PLAYER", args: [ "LOCATION", location ] });
     }
 
     /** Set the name of the client. */
     public setName(name: string) {
+        this.state = ClientState.InLobby;
         this.name = name;
-        this.state = ClientState.Connected;
     }
 
     /** Send a packet to this client. */
@@ -53,6 +119,6 @@ export class Client {
     }
 
     public get active(): boolean {
-        return this.state === ClientState.Connected;
+        return this.state !== ClientState.Idle;
     }
 }

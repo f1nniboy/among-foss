@@ -1,1 +1,4 @@
-export type QueryType = "PLAYERS" | "ROOMS"
+export enum Query {
+    Players = "PLAYERS",
+    Rooms = "ROOMS"
+}
