@@ -5,6 +5,7 @@ import {
 	PacketName,
 	PacketParameterType,
 	PacketReceiveOptions,
+	PacketRequirement,
 	PacketSendOptions,
 	parseParameters
 } from "./packet/mod.ts";
@@ -73,12 +74,22 @@ class Server {
 
 	/** Create a room. */
 	public createRoom(host: Client, visibility: RoomVisibility): Room {
+		if (this.rooms.length >= this.settings.maxRooms) throw new PacketError("MAX_ROOMS");
+
 		const room = new Room({
 			host, visibility, code: Room.code()
 		});
 
 		this.rooms.push(room);
 		return room;
+	}
+
+	/** Remove a room. */
+	public removeRoom(room: Room) {
+		Logger.info(`Room ${colors.bold(room.name)} has been removed.`);
+
+		const index = this.rooms.indexOf(room);
+		this.rooms.splice(index, 1);
 	}
 
 	/** Set up the server & listen for connections. */
@@ -154,19 +165,30 @@ class Server {
 
 		if (!packet) {
 			Logger.warn("Client", colors.bold(`#${client.id}`), "sent an invalid packet.");
-			client.send({ name: "ERROR", args: "INVALID_CMD" });
+			client.send({ name: "ERR", args: "INVALID_CMD" });
 
 			return;
 		}
 
 		/* If the client hasn't chosen a name yet, ... */
 		if (!client.active && packet.name !== "NICK") {
-			return client.send({ name: "ERROR", args: "CHOOSE_NICK" });
+			return client.send({ name: "ERR", args: "CHOOSE_NICK" });
 		}
 
 		Logger.debug(colors.bold(`#${client.id}`), "->", colors.italic(name), colors.italic(parts.join(" ")));
 
 		try {
+			/** Requirements of the packet */
+			const req = packet.requirements ?? [];
+
+			if ((req.includes(PacketRequirement.InRoom) || req.includes(PacketRequirement.RoomHost)) && client.room === null) {
+				throw new PacketError("NOT_IN_ROOM");
+			}
+			
+			if (req.includes(PacketRequirement.RoomHost) && client.room?.host.id !== client.id) {
+				throw new PacketError("NOT_ROOM_HOST");
+			}
+
 			const reply = packet.handler({
 				client, args: parts, data: parseParameters(packet, parts) as Array<PacketParameterType>
 			});
@@ -174,7 +196,7 @@ class Server {
 			if (reply) client.send(reply);
 
 		} catch (error) {
-			client.send({ name: "ERROR", args: error.message });
+			client.send({ name: "ERR", args: error.message });
 		}
 	}
 

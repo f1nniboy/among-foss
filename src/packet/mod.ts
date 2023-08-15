@@ -13,12 +13,26 @@ interface PacketParameter {
     optional?: boolean;
 }
 
+export enum PacketRequirement {
+    /** The client has to be connected to a room */
+    InRoom,
+
+    /** The client has to be the room host */
+    RoomHost,
+
+    /** The client has to be in a game round */
+    InGame
+}
+
 export interface Packet<Data extends Array<PacketParameterType> = Array<PacketParameterType>> {
     /** Name of the packet */
     name: PacketName;
 
     /** Parameters of the packet */
     parameters?: PacketParameter[] | PacketParameter;
+
+    /** Requirements of the packet */
+    requirements?: PacketRequirement[];
 
     /** Handler of the packet */
     handler: (data: PacketHandlerData<Data>) => PacketReply | void;

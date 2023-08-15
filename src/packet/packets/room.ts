@@ -18,8 +18,6 @@ export const RoomPacket: Packet<[ string ]> = {
             const code = args[0];
             if (!code) throw new PacketError("MISSING_ARG");
 
-            console.log(code, server.rooms)
-
             const room = server.rooms.find(r => r.code === code);
             if (!room) throw new PacketError("INVALID_ARG");
 

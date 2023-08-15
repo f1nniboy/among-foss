@@ -1,10 +1,11 @@
 import { type PacketSendOptions } from "./packet/mod.ts";
 
+import { Room, RoomNotifyType } from "./room.ts";
+import { PacketError } from "./packet/error.ts";
+import { Query } from "./packet/types/query.ts";
 import { connToString } from "./utils/ip.ts";
 import { Loc } from "./game/location.ts";
 import { server } from "./server.ts";
-import { Room, RoomNotifyType } from "./room.ts";
-import { PacketError } from "./packet/error.ts";
 
 export enum ClientState {
     /** The client has connected, but not chosen a name yet */
@@ -61,13 +62,17 @@ export class Client {
     public join(room: Room) {
         if (this.room !== null) throw new PacketError("ALREADY_IN_ROOM");
         if (room.running) throw new PacketError("ALREADY_RUNNING");
+
+        if (room.clients.length + 1 > room.settings.maxPlayers) {
+            throw new PacketError("MAX_PLAYERS");
+        }
         
         this.room = room;
-        this.room.notify(this, RoomNotifyType.Join);
+        this.room.notify(this, RoomNotifyType.RoomEnter);
 
         this.send({
             name: "ROOM", args: [
-                room.code, room.visibility
+                room.name, room.code, room.visibility
             ]
         });
     }
@@ -76,10 +81,13 @@ export class Client {
     public leave() {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
 
-        this.room.notify(this, RoomNotifyType.Leave);
+        this.room.notify(this, RoomNotifyType.RoomLeave);
+
+        if (this.room.empty) server.removeRoom(this.room);
         this.room = null;
 
-        this.send({ name: "OK" });
+        const rooms = server.query(Query.Rooms, this);
+        this.send({ name: "ROOMS", args: rooms });
     }
 
     /** Change the role of the client. */

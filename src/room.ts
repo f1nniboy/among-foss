@@ -1,8 +1,10 @@
 import { PacketBroadcastOptions } from "./packet/mod.ts";
 import { Client, ClientRole } from "./client.ts";
 import { PacketError } from "./packet/error.ts";
+import { Logger } from "./utils/logger.ts";
 import { Loc } from "./game/location.ts";
 import { server } from "./server.ts";
+import { colors } from "./deps.ts";
 
 enum RoomState {
     /** The players are waiting for the game to start & can chat */
@@ -24,8 +26,11 @@ export enum RoomVisibility {
 }
 
 export enum RoomNotifyType {
-    Join = "JOIN",
-    Leave = "LEAVE"
+    RoomEnter = "JOIN",
+    RoomLeave = "PART",
+
+    LocationEnter = "ENTER",
+    LocationLeave = "LEAVE"
 }
 
 interface RoomSettings {
@@ -37,6 +42,9 @@ interface RoomSettings {
 
     /** Minimum amount of players to start the game */
     minPlayers: number;
+
+    /** Maximum amount of players in the room */
+    maxPlayers: number;
 }
 
 export class Room {
@@ -64,8 +72,10 @@ export class Room {
 
         /* Sane default settings */
         this.settings = {
-            impostors: 1, delayPerMove: 15, minPlayers: 1
+            impostors: 1, delayPerMove: 15, minPlayers: 1, maxPlayers: 10
         };
+
+        Logger.info(`Room ${colors.bold(this.name)} has been created.`);
     }
 
     /** Start the game. */
@@ -75,10 +85,13 @@ export class Room {
 
         this.setState(RoomState.Main);
         
+        /* Assign clients their roles & tasks. */
         for (const client of server.clients) {
             client.setLocation(Loc.Cafeteria);
             client.setRole(ClientRole.Crewmate);
         }
+        
+        Logger.info(`Room ${colors.bold(this.name)} has started.`);
     }
 
     /** Update the state of the game. */
@@ -120,6 +133,11 @@ export class Room {
         return this.state === RoomState.Main;
     }
 
+    /** Whether the room is empty */
+    public get empty(): boolean {
+        return this.clients.length - 1 === 0;
+    }
+
     /** Name of the room */
     public get name(): string {
         return this.host.name;
@@ -127,6 +145,6 @@ export class Room {
 
     /** Generate a room code. */
     public static code(): string {
-        return `${Math.floor((Math.random() * 10000))}`;
+        return `${Math.floor((Math.random() * 10000 + 1000))}`;
     }
 }

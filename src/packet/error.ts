@@ -18,7 +18,7 @@ type PacketErrorName =
     | "NOT_NEIGHBORING"
 
     /** Room */
-    | "NOT_IN_ROOM" | "ALREADY_IN_ROOM" | "ALREADY_RUNNING" | "MAX_ROOMS_REACHED"
+    | "NOT_IN_ROOM" | "ALREADY_IN_ROOM" | "ALREADY_RUNNING" | "NOT_ROOM_HOST" | "MAX_ROOMS" | "MAX_PLAYERS"
 
     /** Generic errors */
     | "NOT_IN_LOBBY" | "INVALID_CMD" | "NOT_IMPLEMENTED" | "ALREADY_CONN"

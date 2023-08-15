@@ -1,25 +1,22 @@
+import { Packet, PacketRequirement } from "../mod.ts";
 import { PacketError } from "../error.ts";
-import { server } from "../../server.ts";
-import { Packet } from "../mod.ts";
 
 export const CommandPacket: Packet<[ string ]> = {
     name: "CMD",
+
+    requirements: [
+        PacketRequirement.InRoom, PacketRequirement.RoomHost
+    ],
 
     parameters: [
         { type: "string" }
     ],
 
-    handler: ({ data: [ name ], args }) => {
+    handler: ({ client, data: [ name ], args }) => {
         args.shift();
 
         if (name === "start") {
-            //server.game.start();
-        } else if (name === "kick") {
-            const target = args[0];
-            if (!target) throw new PacketError("MISSING_ARG");
-
-            const client = server.clients.find(c => c.name === target);
-            if (!client) throw new PacketError("INVALID_ARG");
+            client.room!.start();
 
         } else {
             throw new PacketError("INVALID_CMD");
