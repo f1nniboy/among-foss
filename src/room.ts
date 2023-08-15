@@ -45,6 +45,9 @@ interface RoomSettings {
 
     /** Maximum amount of players in the room */
     maxPlayers: number;
+
+    /** How many tasks each player should receive */
+    tasks: number;
 }
 
 export class Room {
@@ -72,7 +75,7 @@ export class Room {
 
         /* Sane default settings */
         this.settings = {
-            impostors: 1, delayPerMove: 15, minPlayers: 1, maxPlayers: 10
+            impostors: 1, delayPerMove: 15, minPlayers: 1, maxPlayers: 10, tasks: 5
         };
 
         Logger.info(`Room ${colors.bold(this.name)} has been created.`);
@@ -82,15 +85,16 @@ export class Room {
     public start() {
         if (this.state !== RoomState.Lobby) throw new PacketError("GAME_ALREADY_STARTED");
         if (server.clients.length < this.settings.minPlayers) throw new PacketError("NOT_ENOUGH_PLAYERS");
-
-        this.setState(RoomState.Main);
         
         /* Assign clients their roles & tasks. */
         for (const client of server.clients) {
             client.setLocation(Loc.Cafeteria);
             client.setRole(ClientRole.Crewmate);
+            
+            client.chooseTasks();
         }
         
+        this.setState(RoomState.Main);
         Logger.info(`Room ${colors.bold(this.name)} has started.`);
     }
 
@@ -104,19 +108,26 @@ export class Room {
     }
 
     /** Notify other clients when a client joins or leaves. */
-    public notify(client: Client, type: RoomNotifyType) {
+    public notify(client: Client, type: RoomNotifyType, clients?: Client[]) {
         this.broadcast({
-            client, name: type, args: client.name
+            client, clients, name: type, args: client.name
         });
     }
 
 	/** Broadcast a packet to all connected clients in the room. */
-	public broadcast({ client: except, name, args }: PacketBroadcastOptions) {
-		for (const client of this.clients.filter(c => c.active)) {
+	public broadcast({ client: except, clients, name, args }: PacketBroadcastOptions) {
+		for (const client of clients ?? this.clients.filter(c => c.active)) {
 			if (except && client.id === except.id) continue;
 			server.send({ client, name, args });
 		}
 	}
+
+    /** Clean up the room, if needed. */
+    public clean() {
+        if (this.empty || !this.host) {
+            server.removeRoom(this);
+        }
+    }
 
     /** Which players are the impostors */
     public impostors(): Client[] {

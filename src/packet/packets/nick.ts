@@ -5,7 +5,10 @@ import { Packet } from "../mod.ts";
 
 export const NickPacket: Packet<[ string ]> = {
     name: "NICK",
-    parameters: [ { type: "string" } ],
+
+    parameters: [
+        { type: "string" }
+    ],
 
     handler: ({ client, data: [ name ] }) => {
         if (client.name !== null) throw new PacketError("NICK_SET");

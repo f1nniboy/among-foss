@@ -76,6 +76,9 @@ export interface PacketSendOptions {
 export type PacketBroadcastOptions = Omit<PacketSendOptions, "client"> & {
     /** Client to exclude, optional */
     client?: Client;
+
+    /** Which clients to send this to */
+    clients?: Client[];
 }
 
 /** Parse all packet parameters. */

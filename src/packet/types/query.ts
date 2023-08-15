@@ -1,4 +1,5 @@
 export enum Query {
     Players = "PLAYERS",
-    Rooms = "ROOMS"
+    Rooms = "ROOMS",
+    Tasks = "TASKS"
 }

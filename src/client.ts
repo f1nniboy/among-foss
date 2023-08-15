@@ -1,10 +1,11 @@
 import { type PacketSendOptions } from "./packet/mod.ts";
 
+import { Task, chooseRandomTasks } from "./game/task.ts";
 import { Room, RoomNotifyType } from "./room.ts";
 import { PacketError } from "./packet/error.ts";
 import { Query } from "./packet/types/query.ts";
 import { connToString } from "./utils/ip.ts";
-import { Loc } from "./game/location.ts";
+import { Loc, Locations } from "./game/location.ts";
 import { server } from "./server.ts";
 
 export enum ClientState {
@@ -44,6 +45,12 @@ export class Client {
     /** Location of the client */
     public location: Loc;
 
+    /* When the client did their last move */
+    public lastMove: number | null;
+
+    /** Tasks assigned to the client */
+    public tasks: Partial<Record<Task, boolean>> | null;
+
     /** Which room the client is in */
     public room: Room | null;
 
@@ -54,6 +61,9 @@ export class Client {
         this.location = Loc.Cafeteria;
         this.state = ClientState.Idle;
         this.role = ClientRole.None;
+
+        this.lastMove = null;
+        this.tasks = null;
         this.name = null!;
         this.room = null;
     }
@@ -82,28 +92,55 @@ export class Client {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
 
         this.room.notify(this, RoomNotifyType.RoomLeave);
+        this.room.clean();
 
-        if (this.room.empty) server.removeRoom(this.room);
         this.room = null;
 
         const rooms = server.query(Query.Rooms, this);
         this.send({ name: "ROOMS", args: rooms });
     }
 
+    /** Choose tasks for the client. */
+    public chooseTasks() {
+        if (this.room === null) throw new PacketError("NOT_IN_ROOM");
+        this.tasks = chooseRandomTasks(this.room.settings.tasks);
+
+        this.send({
+            name: "TASKS",
+            args: Object.entries(this.tasks).map(([ id, done ]) => `${id}:${Number(done)}`)
+        });
+    }
+
     /** Change the role of the client. */
     public setRole(role: ClientRole) {
-        if (this.room === null) throw new PacketError("NOT_IN_LOBBY");
+        if (this.room === null) throw new PacketError("NOT_IN_ROOM");
 
         this.role = role;
-        this.send({ name: "PLAYER", args: [ "ROLE", role ] });
+        this.send({ name: "ROLE", args: role });
     }
 
     /** Change the location of the client. */
     public setLocation(location: Loc) {
-        if (this.room === null) throw new PacketError("NOT_IN_LOBBY");
+        if (this.room === null) throw new PacketError("NOT_IN_ROOM");
+
+        /* Whether the new location is next to the previous one */
+        const neighboring: boolean = this.location === location || Locations[this.location].doors.includes(location);
+        if (!neighboring) throw new PacketError("INVALID_LOC");
+
+        if (this.room.running) {
+            /* Location leave */
+            this.room.notify(
+                this, RoomNotifyType.LocationLeave, this.room.clients.filter(c => c.location === this.location)
+            );
+
+            /* Location enter */
+            this.room.notify(
+                this, RoomNotifyType.LocationEnter, this.room.clients.filter(c => c.location === location)
+            );
+        }
 
         this.location = location;
-        this.send({ name: "PLAYER", args: [ "LOCATION", location ] });
+        this.send({ name: "LOCATION", args: location });
     }
 
     /** Set the name of the client. */

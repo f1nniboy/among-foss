@@ -10,13 +10,13 @@ import {
 	parseParameters
 } from "./packet/mod.ts";
 
+import { Room, RoomNotifyType, RoomVisibility } from "./room.ts";
 import { LogType, Logger } from "./utils/logger.ts";
 import { Packets } from "./packet/packets/mod.ts";
 import { Query } from "./packet/types/query.ts";
 import { PacketError } from "./packet/error.ts";
 import { connToString } from "./utils/ip.ts";
 import { Client } from "./client.ts";
-import { Room, RoomVisibility } from "./room.ts";
 
 interface ServerSettings {
 	port: number;
@@ -123,7 +123,7 @@ class Server {
 		Logger.info("Client", colors.bold(`#${client.id}`), "has connected.");
 
 		client.send({
-			name: "SERVER", args: "Among FOSS"
+			name: "SERVER", args: [ "0.0.1", this.clients.length ]
 		});
 
 		/* Buffer to read data into */
@@ -181,12 +181,16 @@ class Server {
 			/** Requirements of the packet */
 			const req = packet.requirements ?? [];
 
-			if ((req.includes(PacketRequirement.InRoom) || req.includes(PacketRequirement.RoomHost)) && client.room === null) {
+			if ((req.includes(PacketRequirement.InRoom) || req.includes(PacketRequirement.RoomHost) || req.includes(PacketRequirement.InGame)) && client.room === null) {
 				throw new PacketError("NOT_IN_ROOM");
 			}
 			
 			if (req.includes(PacketRequirement.RoomHost) && client.room?.host.id !== client.id) {
 				throw new PacketError("NOT_ROOM_HOST");
+			}
+
+			if (req.includes(PacketRequirement.InGame) && !client.room?.running) {
+				throw new PacketError("GAME_NOT_ACTIVE");
 			}
 
 			const reply = packet.handler({
@@ -204,9 +208,10 @@ class Server {
 	private handleDisconnect(client: Client) {
 		Logger.info("Client", colors.bold(`#${client.id}`), "has disconnected.");
 
-		if (client.name && client.room) client.room.broadcast({
-			client, name: "LEAVE", args: client.name
-		});
+		if (client.room) {
+			client.room.notify(client, RoomNotifyType.RoomLeave);
+			client.room.clean();
+		}
 
 		const index = this.clients.indexOf(client);
 		this.clients.splice(index, 1);
@@ -225,8 +230,8 @@ class Server {
 	}
 
 	/** Broadcast a packet to all connected clients. */
-	public broadcast({ client: except, name, args }: PacketBroadcastOptions) {
-		for (const client of this.clients.filter(c => c.active)) {
+	public broadcast({ client: except, clients, name, args }: PacketBroadcastOptions) {
+		for (const client of clients ?? this.clients.filter(c => c.active)) {
 			if (except && client.id === except.id) continue;
 			this.send({ client, name, args });
 		}
@@ -238,8 +243,14 @@ class Server {
 			if (client.room === null) throw new PacketError("NOT_IN_ROOM");
 			return server.clients.filter(c => c.active && c.id !== client.id).map(c => c.name);
 
+		} else if (type === Query.Tasks) {
+			if (client.room === null) throw new PacketError("NOT_IN_ROOM");
+			if (!client.room.running || !client.tasks) throw new PacketError("GAME_NOT_ACTIVE");
+
+			return Object.entries(client.tasks)
+				.map(([ id, done ]) => `${id}:${Number(done)}`);
+
 		} else if (type === Query.Rooms) {
-			/* Do not allow already playing users to fetch the room list. */
 			if (client.room !== null) throw new PacketError("ALREADY_IN_ROOM");
 
 			return this.rooms
