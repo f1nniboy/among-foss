@@ -1,7 +1,9 @@
+import { DiscussionReason } from "../types/discussion.ts";
 import { Packet, PacketRequirement } from "../mod.ts";
 
 export const MeetPacket: Packet<[ string ]> = {
     name: "MEET",
+    description: "Call a meeting",
 
     requirements: [
         PacketRequirement.InRoom,
@@ -9,6 +11,6 @@ export const MeetPacket: Packet<[ string ]> = {
     ],
 
     handler: ({ client }) => {
-        client.room!.startDiscussion(client);
+        client.room!.startDiscussion(client, DiscussionReason.Button);
     }
 }

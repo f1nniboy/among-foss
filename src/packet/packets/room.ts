@@ -1,13 +1,25 @@
-import { RoomVisibility } from "../../room.ts";
+import { RoomDataType, RoomVisibility } from "../../room/room.ts";
+import { GameMaps } from "../../game/maps/mod.ts";
 import { PacketError } from "../error.ts";
 import { server } from "../../server.ts";
 import { Packet } from "../mod.ts";
 
 export const RoomPacket: Packet<[ string ]> = {
     name: "ROOM",
-    parameters: [ { type: "string" } ],
+    description: "Create, join & delete rooms",
+
+    parameters: [
+        {
+            name: "action",
+            description: "Which action to perform",
+            enum: [ "join", "leave", "create" ],
+            type: "string"
+        }
+    ],
 
     handler: async ({ client, data: [ action ], args }) => {
+        if (client.hasCooldown("room")) throw new PacketError("COOL_DOWN");
+
         action = action.toLowerCase();
         args.shift();
 
@@ -37,11 +49,47 @@ export const RoomPacket: Packet<[ string ]> = {
                 : RoomVisibility.Public;
 
             /* Create a new room. */
-            const room = server.createRoom(client, visibility);
+            const room = await server.createRoom(client, visibility);
             await client.join(room);
+
+        /** Update the room settings */
+        } else if (action === "set") {
+            if (client.room === null) throw new PacketError("NOT_IN_ROOM");
+            if (client.room.host.id !== client.id) throw new PacketError("NOT_ROOM_HOST");
+            if (client.room.running) throw new PacketError("ALREADY_STARTED");
+
+            /* Key to update & new value */
+            const key = args[0]?.toString().toLowerCase();
+            let value = args[1]?.toString();
+
+            if (!key || !value) throw new PacketError("INVALID_ARG");
+
+            /** Map */
+            if (key === "map") {
+                value = value.toUpperCase();
+
+                if (!GameMaps.some(m => m.id === value) || client.room.settings.map === value) throw new PacketError("INVALID_ARG");
+                client.room.settings.map = value;
+
+            /** Maximum players */
+            } else if (key === "max") {
+                if (isNaN(parseInt(value))) throw new PacketError("INVALID_ARG");
+
+                const max = parseInt(value);
+                if (max < 5 || max > 20) throw new PacketError("INVALID_ARG");
+                
+                client.room.settings.maxPlayers = max;
+            }
+
+            await server.broadcast({
+                clients: [ ...server.lurkers, ...client.room.clients ],
+                ...client.room.data(RoomDataType.Update)
+            });
 
         } else {
             throw new PacketError("INVALID_ARG");
         }
+
+        client.setCooldown("room", 1 * 1000);
     }
 }

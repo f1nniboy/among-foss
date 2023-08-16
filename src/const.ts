@@ -1,2 +1,4 @@
-/** Version of the server */
-export const VERSION = "0.0.1"
+export const Constants = {
+    /** Version of the server */
+    VERSION: "0.1"
+}

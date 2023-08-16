@@ -1,14 +1,19 @@
 import { PacketError } from "../error.ts";
-import { Query } from "../types/query.ts";
 import { server } from "../../server.ts";
 import { Packet } from "../mod.ts";
 
 export const NickPacket: Packet<[ string ]> = {
     name: "NICK",
+    description: "Set your nick name",
+
     always: true,
 
     parameters: [
-        { type: "string" }
+        {
+            name: "nick",
+            description: "Nick name to use",
+            type: "string"
+        }
     ],
 
     handler: ({ client, data: [ name ] }) => {
@@ -20,8 +25,6 @@ export const NickPacket: Packet<[ string ]> = {
         if (!name.match(/^[a-z0-9_.-]+$/)) throw new PacketError("INVALID_NICK");
 
         client.setName(name);
-
-        const rooms = server.query(Query.Rooms, client);
-        return { name: "ROOMS", args: rooms };
+        return server.sendRoomList(client);
     }
 }

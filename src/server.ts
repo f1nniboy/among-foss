@@ -10,13 +10,13 @@ import {
 	parseParameters
 } from "./packet/mod.ts";
 
-import { Room, RoomNotifyType, RoomState, RoomVisibility } from "./room.ts";
+import { Room, RoomDataType, RoomNotifyType, RoomState, RoomVisibility } from "./room/room.ts";
 import { LogType, Logger } from "./utils/logger.ts";
 import { Packets } from "./packet/packets/mod.ts";
-import { Query } from "./packet/types/query.ts";
 import { PacketError } from "./packet/error.ts";
 import { connToString } from "./utils/ip.ts";
 import { Client } from "./client.ts";
+import { Constants } from "./const.ts";
 
 interface ServerSettings {
 	port: number;
@@ -73,11 +73,15 @@ class Server {
 	}
 
 	/** Create a room. */
-	public createRoom(host: Client, visibility: RoomVisibility): Room {
+	public async createRoom(host: Client, visibility: RoomVisibility) {
 		if (this.rooms.length >= this.settings.maxRooms) throw new PacketError("MAX_ROOMS");
 
 		const room = new Room({
 			host, visibility, code: Room.code()
+		});
+
+		await this.broadcast({
+			clients: this.lurkers.filter(c => c.id !== host.id), ...room.data(RoomDataType.Create)
 		});
 
 		this.rooms.push(room);
@@ -85,9 +89,13 @@ class Server {
 	}
 
 	/** Remove a room. */
-	public removeRoom(room: Room) {
+	public async removeRoom(room: Room) {
 		room.state = RoomState.Inactive;
 		Logger.info(`Room ${colors.bold(room.name)} has been removed.`);
+
+		await this.broadcast({
+			clients: this.lurkers.filter(c => c.id !== room.host.id), ...room.data(RoomDataType.Delete)
+		});
 
 		const index = this.rooms.indexOf(room);
 		this.rooms.splice(index, 1);
@@ -124,7 +132,7 @@ class Server {
 		Logger.info("Client", colors.bold(`#${client.id}`), "has connected.");
 
 		await client.send({
-			name: "SERVER", args: [ "0.0.1", this.clients.filter(c => c.active).length ]
+			name: "SERVER", args: [ Constants.VERSION, this.clients.filter(c => c.active).length, this.rooms.length ]
 		});
 
 		client.ping();
@@ -137,7 +145,7 @@ class Server {
 				const length = await client.conn.read(buffer);
 
 				if (!length) {
-					this.handleDisconnect(client);
+					await this.handleDisconnect(client);
 					break;
 				} else {
 					const message = this.decoder.decode(buffer.subarray(0, length));
@@ -149,7 +157,7 @@ class Server {
 
 			/* The client has disconnected */
 			} catch (_) {
-				this.handleDisconnect(client);
+				await this.handleDisconnect(client);
 				break;
 			}
 		}
@@ -209,6 +217,12 @@ class Server {
 
 			if (reply) await client.send(reply);
 
+			if (packet.ack) {
+				await client.send({
+					name: "OK", args: [ name, ...parts ]
+				})
+			}
+
 		} catch (error) {
 			if (!(error instanceof PacketError)) Logger.error(`Client ${colors.bold(`#${client.id}`)} encountered an error`, colors.bold("->"), error);
 			await client.send({ name: "ERR", args: error instanceof PacketError ? error.message : "UNKNOWN" });
@@ -216,15 +230,16 @@ class Server {
 	}
 
 	/** Handle disconnections from clients. */
-	private handleDisconnect(client: Client) {
+	private async handleDisconnect(client: Client) {
 		Logger.info("Client", colors.bold(`#${client.id}`), "has disconnected.");
 
 		if (client.room) {
-			client.room.notify(client, RoomNotifyType.RoomLeave);
-			client.room.clean();
+			await client.room.notify(client, RoomNotifyType.RoomLeave);
+			await client.room.clean();
 		}
 
 		if (client.timer) clearInterval(client.timer);
+		if (client.room) client.room.assignHost(client);
 
 		const index = this.clients.indexOf(client);
 		this.clients.splice(index, 1);
@@ -233,7 +248,7 @@ class Server {
 	/** Send a packet to a client, or broadcast it. */
 	public async send({ client, name, args: rawArgs }: PacketSendOptions) {
 		let args: string[] = rawArgs ? (typeof rawArgs === "string" ? [ rawArgs ] : rawArgs as string[]) : [];
-		args = args.map(a => a.toString().includes(" ") && args.length > 1 ? `:${a}` : a.toString());
+		args = args.map(a => a.toString());
 
 		/* The raw data to send */
 		const raw = `${name}${args.length > 0 ? ` ${args.join(" ")}` : ""}\n`;
@@ -250,46 +265,27 @@ class Server {
 		}
 	}
 
-	/** Query specific data from the server. */
-	public query(type: Query, client: Client): string[] | string {
-		if (type === Query.Players) {
-			if (client.room === null) throw new PacketError("NOT_IN_ROOM");
-			return server.clients.filter(c => c.active && c.id !== client.id).map(c => c.name);
-
-		} else if (type === Query.Tasks) {
-			if (client.room === null) throw new PacketError("NOT_IN_ROOM");
-			if (!client.room.running || !client.temp.tasks) throw new PacketError("NOT_ACTIVE");
-
-			return client.tasks();
-
-		} else if (type === Query.Rooms) {
-			if (client.room !== null) throw new PacketError("ALREADY_IN_ROOM");
-
-			return this.rooms
-				.filter(r => r.visibility === RoomVisibility.Public)
-				.map(r => `${r.name}:${r.code}`);
-
-		} else if (type === Query.Progress) {
-			if (client.room === null) throw new PacketError("NOT_IN_ROOM");
-			if (!client.room.running) throw new PacketError("NOT_ACTIVE");
-
-			return client.room.progress();
+	/* Send a list of all rooms to the client. */
+	public async sendRoomList(client: Client) {
+		for (const room of this.rooms.filter(r => r.visibility === RoomVisibility.Public)) {
+			await client.send(room.data(RoomDataType.Create));
 		}
 
-		throw new PacketError("INVALID_QUERY");
+		/* Always send an empty ROOMS packet at the end. */
+		await client.send({ name: "ROOMS" });
+	}
+
+	/** Clients that have not joined a room yet */
+	public get lurkers(): Client[] {
+		return this.clients.filter(c => c.active && c.room === null);
 	}
 
 	/** Parse the command arguments. */
 	public parse() {
 		const args = parse(Deno.args);
 
-		/** Port to listen on */
 		if (args.p && typeof args.p === "number") this.settings.port = args.p;
-
-		/** Whether duplicate connections should be allowed */
 		if (args.d && typeof args.d === "boolean") this.settings.duplicateConnections = args.d;
-
-		/** Maximum amount of rooms that can exist at a time*/
 		if (args.r && typeof args.d === "number") this.settings.maxRooms = args.r;
 
 		if (args.h) {

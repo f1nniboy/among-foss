@@ -2,12 +2,13 @@ import { Packet, PacketRequirement } from "../mod.ts";
 
 export const StartPacket: Packet = {
     name: "START",
+    description: "Start the game",
 
     requirements: [
         PacketRequirement.InRoom, PacketRequirement.RoomHost
     ],
 
-    handler: ({ client }) => {
-        client.room!.startGame();
+    handler: async ({ client }) => {
+        await client.room!.startGame();
     }
 }

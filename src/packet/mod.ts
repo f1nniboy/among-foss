@@ -6,8 +6,17 @@ export type PacketName = string
 export type PacketParameterType = string | number | boolean
 
 interface PacketParameter {
+    /** Name of the parameter */
+    name: string;
+
+    /** Description of the parameter */
+    description: string;
+
     /** Type of the parameter */
     type: "string" | "number" | "boolean";
+
+    /** Which values are accepted */
+    enum?: PacketParameterType[];
 
     /** Whether the parameter is optional */
     optional?: boolean;
@@ -34,8 +43,14 @@ export interface Packet<Data extends Array<PacketParameterType> = Array<PacketPa
     /** Name of the packet */
     name: PacketName;
 
+    /** Description of the packet */
+    description: string;
+
     /** Whether this packet also works when the user has not authenticated yet */
     always?: boolean;
+
+    /** Whether an OK packet should be sent after successful execution of this packet */
+    ack?: boolean;
 
     /** Parameters of the packet */
     parameters?: PacketParameter[] | PacketParameter;

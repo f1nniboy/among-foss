@@ -1,26 +1,26 @@
-import { Loc, Locations } from "../../game/location.ts";
 import { Packet, PacketRequirement } from "../mod.ts";
 import { PacketError } from "../error.ts";
 
 export const MovePacket: Packet<[ string ]> = {
     name: "MOVE",
+    description: "Move around in the map",
 
     requirements: [
         PacketRequirement.InGame
     ],
 
     parameters: [
-        { type: "string" }
+        {
+            name: "loc",
+            description: "New location to move to",
+            type: "string"
+        }
     ],
 
     handler: async ({ client, data: [ loc ] }) => {
-        if (client.temp.lastMove && client.temp.lastMove + (client.room!.settings.delayPerMove * 1000) > Date.now()) {
-            throw new PacketError("COOL_DOWN");
-        }
+        if (!client.room!.map.location(loc)) throw new PacketError("INVALID_LOC");
+        if (client.hasCooldown("move")) throw new PacketError("COOL_DOWN");
 
-        if (!Locations[loc as Loc]) throw new PacketError("INVALID_LOC");
-        if (client.location === loc) throw new PacketError("ALREADY_LOC");
-
-        await client.setLocation(loc as Loc);
+        await client.setLocation(loc);
     }
 }

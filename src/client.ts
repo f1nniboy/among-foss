@@ -1,11 +1,10 @@
 import { type PacketSendOptions } from "./packet/mod.ts";
 
-import { Task, Tasks, chooseRandomTasks } from "./game/task.ts";
 import { DisconnectReason } from "./packet/types/disconnect.ts";
-import { Loc, Locations } from "./game/location.ts";
-import { Room, RoomNotifyType } from "./room.ts";
+import { TaskName, randomTasks } from "./game/task.ts";
+import { Room, RoomDataType, RoomNotifyType, RoomState } from "./room/room.ts";
+import { LocationName } from "./game/location.ts";
 import { PacketError } from "./packet/error.ts";
-import { Query } from "./packet/types/query.ts";
 import { connToString } from "./utils/ip.ts";
 import { server } from "./server.ts";
 
@@ -25,14 +24,11 @@ export enum ClientRole {
 }
 
 interface ClientTemporaryData {
-    /* When the client did their last move */
-    lastMove: number | null;
-
-    /* How many discussions the client has remaining */
+    /** How many discussions the client has remaining */
     remainingDiscussions: number;
 
     /** Tasks assigned to the client */
-    tasks: Partial<Record<Task, boolean>> | null;
+    tasks: Record<`${LocationName}:${TaskName}`, boolean> | null;
 
     /** Whether the client has voted already */
     voted: boolean;
@@ -58,7 +54,7 @@ export class Client {
     public role: ClientRole;
 
     /** Location of the client */
-    public location: Loc;
+    public location: LocationName;
 
     /** Temporary data, used during the game */
     public temp: ClientTemporaryData;
@@ -69,17 +65,21 @@ export class Client {
     /** The current time-out timer */
     public timer: number | null;
 
+    /* Cool-down timers */
+    public spam: Record<string, number>;
+
     constructor(conn: Deno.Conn, id: number) {
         this.conn = conn;
         this.id = id;
 
-        this.location = Loc.Cafeteria;
         this.state = ClientState.Idle;
         this.role = ClientRole.None;
+        this.location = "NONE";
 
         this.timer = null;
         this.name = null!;
         this.room = null;
+        this.spam = {};
 
         this.temp = null!;
         this.clean();
@@ -95,58 +95,55 @@ export class Client {
         }
         
         this.room = room;
-        this.room.notify(this, RoomNotifyType.RoomEnter);
+
+        await this.room.notify(this, RoomNotifyType.RoomEnter);
+        await this.send(room.data(RoomDataType.Join));
 
         await this.send({
-            name: "ROOM", args: [
-                room.name, room.code, room.visibility
+            name: "PLAYERS", args: [
+                ...this.room.clients.filter(c => c.id !== this.id).map(c => c.name)
             ]
+        });
+
+        await server.broadcast({
+            clients: server.lurkers, ...room.data(RoomDataType.Update)
         });
     }
 
     /** Leave the current room. */
     public async leave() {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
+        const room = this.room;
 
         await this.room.notify(this, RoomNotifyType.RoomLeave);
-        this.room.clean();
+        await this.room.clean();
 
         this.room = null;
         this.clean();
 
-        const rooms = server.query(Query.Rooms, this);
-        await this.send({ name: "ROOMS", args: rooms });
+        await server.sendRoomList(this);
+
+        if (room.state !== RoomState.Inactive) await server.broadcast({
+            clients: server.lurkers, ...room.data(RoomDataType.Update)
+        });
     }
     
     /** Clean up all game-related variables. */
     public clean() {
         this.temp = {
-            lastMove: null, tasks: null, remainingDiscussions: 0, voted: false, votes: 0
+            tasks: null, remainingDiscussions: 0, voted: false, votes: 0
         };
 
         this.role = ClientRole.None;
-        this.location = Loc.Cafeteria;
-    }
-
-    /** Complete an assigned task. */
-    public async completeTask(id: Task) {
-        if (!this.alive) throw new PacketError("DEAD");
-        if (this.role === ClientRole.Impostor || !this.temp.tasks) throw new PacketError("FORBIDDEN");
-        
-        /* Corresponding task data */
-        const task = Tasks[id];
-        if (this.location !== task.location) throw new PacketError("WRONG_LOC");
-
-        this.temp.tasks[id] = true;
-        await this.send({ name: "TASKS", args: this.tasks() });
+        this.location = "NONE";
     }
 
     /** Kill the client. */
-    public async kill(by?: Client) {
+    public async die(broadcast = false) {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
         await this.setRole(ClientRole.Spectator);
 
-        if (by) {
+        if (broadcast) {
             await this.room.broadcast({
                 client: this, name: "DIE", args: this.name,
                 clients: this.room.players.filter(c => c.location === this.location)
@@ -154,17 +151,51 @@ export class Client {
         }
     }
 
-    /** Choose tasks for the client. */
-    public async chooseTasks() {
+    /** Kill another client. */
+    public async kill(target: Client) {
+        if (
+            this.role !== ClientRole.Impostor || target.role === ClientRole.Impostor || target.location !== this.location
+        ) throw new PacketError("FORBIDDEN");
+
+        if (this.hasCooldown("kill")) throw new PacketError("COOL_DOWN");
+        this.room!.temp.corpses[target.name] = this.location;
+
+        this.setCooldown("kill", this.room!.settings.delays.kill * 1000);
+        await target.die(true);
+    }
+
+    /** Complete an assigned task. */
+    public async completeTask(id: TaskName) {
+        if (!this.alive) throw new PacketError("DEAD");
+        if (this.role === ClientRole.Impostor || !this.temp.tasks) throw new PacketError("FORBIDDEN");
+        if (this.temp.tasks[`${this.location}:${id}`] == undefined) throw new PacketError("INVALID_ARG");
+
+        /* Corresponding task data */
+        const task = this.room!.map.task(id)!;
+        if (!task.locations.includes(this.location)) throw new PacketError("WRONG_LOC");
+
+        this.temp.tasks[`${this.location}:${id}`] = true;
+
+        await this.send({ name: "TASK", args: [ this.location, id ] });
+        await this.room!.broadcastProgress();
+    }
+
+    /** Assign tasks to the client. */
+    public async assignTasks(amount: number) {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
 
-        this.temp.tasks = chooseRandomTasks(this.room.settings.tasks);
+        this.temp.tasks = randomTasks(this.room.map.tasks, amount);
         await this.send({ name: "TASKS", args: this.tasks() });
     }
 
     /** Send the client their pending & completed tasks. */
     public tasks(): string[] {
-        return Object.entries(this.temp.tasks!).map(([ id, done ]) => `${id}:${Tasks[id as Task].location}:${Number(done)}`);
+        return Object.entries(this.temp.tasks!).map(
+            ([ key, done ]) => {
+                const [ location, id ] = key.split(":");
+                return `${location}:${id}:${Number(done)}`;
+            }
+        );
     }
 
     /** Change the role of the client. */
@@ -176,11 +207,11 @@ export class Client {
     }
 
     /** Change the location of the client. */
-    public async setLocation(location: Loc) {
+    public async setLocation(location: LocationName, instant = false) {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
 
         /* Whether the new location is next to the previous one */
-        const neighboring: boolean = this.location === location || Locations[this.location].doors.includes(location);
+        const neighboring: boolean = instant || this.location === location || this.room.map.location(this.location)!.doors.includes(location);
         if (!neighboring) throw new PacketError("INVALID_LOC");
 
         if (this.room.running) {
@@ -195,9 +226,10 @@ export class Client {
             );
         }
 
-        this.temp.lastMove = Date.now();
+        this.setCooldown("move", this.room.settings.delays.move * 1000);
         this.location = location;
 
+        await this.send({ name: "PLAYERS", args: this.room.players.filter(c => c.id !== this.id).map(c => c.name) });
         await this.send({ name: "LOCATION", args: location });
     }
 
@@ -214,6 +246,14 @@ export class Client {
         this.timer = setTimeout(async () => {
             await this.disconnect(DisconnectReason.TimeOut);
         }, 3 * 60 * 1000);
+    }
+
+    public setCooldown(key: string, duration: number) {
+        this.spam[key] = Date.now() + duration;
+    }
+
+    public hasCooldown(key: string): boolean {
+        return this.spam[key] !== undefined && this.spam[key] > Date.now();
     }
 
     /** Disconnect the client. */
@@ -236,15 +276,15 @@ export class Client {
         return this.ip === connToString(conn);
     }
 
-    public get ip(): string {
-        return connToString(this.conn); 
-    }
-
     public get active(): boolean {
-        return this.state !== ClientState.Idle;
+        return this.state === ClientState.Connected;
     }
 
     public get alive(): boolean {
         return this.role === ClientRole.Crewmate || this.role === ClientRole.Impostor;
+    }
+
+    public get ip(): string {
+        return connToString(this.conn); 
     }
 }

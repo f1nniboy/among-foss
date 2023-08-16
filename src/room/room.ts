@@ -1,11 +1,13 @@
-import { DiscussionResult } from "./packet/types/discussion.ts";
-import { PacketBroadcastOptions } from "./packet/mod.ts";
-import { Client, ClientRole } from "./client.ts";
-import { PacketError } from "./packet/error.ts";
-import { Logger } from "./utils/logger.ts";
-import { Loc } from "./game/location.ts";
-import { server } from "./server.ts";
-import { colors } from "./deps.ts";
+import { DiscussionReason, DiscussionResult } from "../packet/types/discussion.ts";
+import { PacketBroadcastOptions } from "../packet/mod.ts";
+import { LocationName } from "../game/location.ts";
+import { Client, ClientRole } from "../client.ts";
+import { GameMap, MapName } from "../game/map.ts";
+import { PacketError } from "../packet/error.ts";
+import { GameMaps } from "../game/maps/mod.ts";
+import { Logger } from "../utils/logger.ts";
+import { server } from "../server.ts";
+import { colors } from "../deps.ts";
 
 export enum RoomState {
     /** The players are waiting for the game to start & can chat */
@@ -37,15 +39,24 @@ export enum RoomNotifyType {
     LocationLeave = "LEAVE"
 }
 
+export enum RoomDataType {
+    Create = "CREATE",
+    Update = "UPDATE",
+    Delete = "DELETE",
+    Join = "JOIN"
+}
+
 interface RoomSettings {
-    /** How many impostors will play */
-    impostors: number;
+    delays: {
+        /** How many seconds should be between each move a user can make between rooms */
+        move: number;
 
-    /** How many seconds should be between each move a user can make between rooms */
-    delayPerMove: number;
+        /** How many seconds should be between each kill an impostor can do */
+        kill: number;
 
-    /** How many seconds of delay should be after a user calls a discussion */
-    delayPerDiscussion: number;
+        /** How many seconds of delay should be after a user calls a discussion */
+        discussion: number;
+    }
 
     /** Minimum amount of players to start the game */
     minPlayers: number;
@@ -58,11 +69,17 @@ interface RoomSettings {
 
     /** How many discussions a player has per-game */
     discussions: number;
+
+    /** Map to play on */
+    map: MapName;
 }
 
 interface RoomTemporaryData {
     /* When the last discussion was called */
     lastDiscussion: number | null;
+
+    /** Corpses in the map; stored in a separate object to keep corpses of people who left */
+    corpses: Record<string, LocationName>;
 
     /* Skips in the current meeting */
     skips: number;
@@ -81,6 +98,9 @@ export class Room {
     /** Code of the room */
     public code: string;
 
+    /** Map of the room */
+    public map: GameMap;
+
     /** Temporary data */
     public temp: RoomTemporaryData;
 
@@ -89,9 +109,10 @@ export class Room {
 
     constructor({ host, visibility, code }: Pick<Room, "host" | "visibility" | "code">) {
         this.state = RoomState.Lobby;
+        this.map = GameMaps[0];
 
         this.temp = {
-            lastDiscussion: null, skips: 0
+            lastDiscussion: null, skips: 0, corpses: {}
         };
 
         this.visibility = visibility;
@@ -100,8 +121,12 @@ export class Room {
 
         /* Sane default settings */
         this.settings = {
-            impostors: 1,
-            delayPerMove: 7.5, delayPerDiscussion: 15,
+            map: "SKELD",
+
+            delays: {
+                move: 10, discussion: 60, kill: 90
+            },
+
             minPlayers: 1, maxPlayers: 10,
             tasks: 5, discussions: 2
         };
@@ -113,34 +138,44 @@ export class Room {
     public async startGame() {
         if (this.state !== RoomState.Lobby) throw new PacketError("ALREADY_STARTED");
         if (server.clients.length < this.settings.minPlayers) throw new PacketError("NOT_ENOUGH_PLAYERS");
-        
+
+        /* Figure out which map to use. */
+        await this.setMap(
+            GameMaps.find(m => m.id === this.settings.map)!
+        );
+
+        /* Lucky person to be the impostor */
+        const impostorIndex = Math.floor(Math.random() * this.clients.length);
+
         /* Assign clients their roles & tasks. */
-        for (const client of this.clients) {
-            await client.setLocation(Loc.Cafeteria);
-            await client.setRole(ClientRole.Crewmate);
+        for (const [ index, client ] of this.clients.entries()) {
+            await client.setRole(impostorIndex === index ? ClientRole.Impostor : ClientRole.Crewmate);
+            await client.setLocation(this.map.defaultLocation, true);
             
+            if (client.role !== ClientRole.Impostor) await client.assignTasks(this.settings.tasks);
             client.temp.remainingDiscussions = this.settings.discussions;
-            if (client.role !== ClientRole.Impostor) await client.chooseTasks();
         }
         
-        this.setState(RoomState.Main);
+        await this.setState(RoomState.Main);
         Logger.info(`Room ${colors.bold(this.name)} has started.`);
     }
 
     /** Start the voting discussion. */
-    public async startDiscussion(client: Client) {
-        if (this.state === RoomState.Discussion || this.state === RoomState.Lobby || client.location !== Loc.Cafeteria) throw new PacketError("FORBIDDEN");
+    public async startDiscussion(client: Client, reason: DiscussionReason) {
+        if (this.state === RoomState.Discussion || this.state === RoomState.Lobby || client.location !== this.map.defaultLocation) throw new PacketError("FORBIDDEN");
         if (client.temp.remainingDiscussions === 0) throw new PacketError("MEET_LIMIT");
 
-        if (this.temp.lastDiscussion && this.temp.lastDiscussion + (this.settings.delayPerDiscussion * 1000) > Date.now()) {
+        if (this.temp.lastDiscussion && this.temp.lastDiscussion + (this.settings.delays.discussion * 1000) > Date.now()) {
             throw new PacketError("COOL_DOWN");
         }
 
         this.temp.skips = 0;
+
+        await this.broadcast({ name: "MEET", args: reason });
         this.setState(RoomState.Discussion);
 
         /* Duration of the discussion */
-        const duration: number = this.settings.delayPerDiscussion * 1000;
+        const duration: number = this.settings.delays.discussion * 1000;
         const started = Date.now();
 
         /** Wait until the discussion is done. */
@@ -171,15 +206,15 @@ export class Room {
         }
 
         if (result === DiscussionResult.Eject && target !== null) {
-            await this.broadcast({ name: "MEETING", args: [
+            await this.broadcast({ name: "MEET", args: [
                 result, target.name, target.role
             ] });
 
-            await target.kill();
+            await target.die();
 
         } else {
             await this.broadcast({
-                name: "MEETING", args: result
+                name: "MEET", args: result
             });
         }
 
@@ -223,7 +258,7 @@ export class Room {
 
         /* Clean up everything. */
         this.temp = {
-            lastDiscussion: null, skips: 0
+            lastDiscussion: null, skips: 0, corpses: {}
         };
 
         for (const client of this.clients) {
@@ -237,12 +272,34 @@ export class Room {
         Logger.info(`Room ${colors.bold(this.name)} has ended.`);
     }
 
+    /** Update the map of the game. */
+    public async setMap(map: GameMap) {
+        const data = this.map.serialize();
+
+        for (const [ key, value ] of data) {
+            await this.broadcast({
+                name: "MAP", args: [
+                    key, Array.isArray(value) ? value.join(" ") : value
+                ]
+            });
+        }
+
+        this.map = map;
+    }
+
     /** Update the state of the game. */
     public async setState(state: RoomState) {
         this.state = state;
 
         await this.broadcast({
             name: "STATE", args: state
+        });
+    }
+
+    /** Broadcast the progress of the game. */
+    public async broadcastProgress() {
+        await this.broadcast({
+            name: "PROGRESS", args: this.progress()
         });
     }
 
@@ -283,6 +340,20 @@ export class Room {
         });
     }
 
+    /** Assign a new host to the room. */
+    public assignHost(except: Client) {
+        this.host = this.clients.filter(c => c.id === except.id)[0];
+    }
+
+    /** Data of this room, for the room list & updates */
+    public data(type: RoomDataType): PacketBroadcastOptions {
+        return {
+            name: "ROOM", args: [
+                type, this.name, this.code, this.settings.map, this.clients.length, this.settings.maxPlayers
+            ]
+        };
+    }
+
 	/** Broadcast a packet to all connected clients in the room. */
 	public async broadcast({ client: except, clients, name, args }: PacketBroadcastOptions) {
 		for (const client of clients ?? this.clients.filter(c => c.active)) {
@@ -292,15 +363,10 @@ export class Room {
 	}
 
     /** Clean up the room, if needed. */
-    public clean() {
+    public async clean() {
         if (this.empty || !this.host) {
-            server.removeRoom(this);
+            await server.removeRoom(this);
         }
-    }
-
-    /** Which players are the impostors */
-    public impostors(): Client[] {
-        return server.clients.filter(c => c.role === ClientRole.Impostor);
     }
 
     /** Which clients are connected to this room */
@@ -310,7 +376,7 @@ export class Room {
 
     /** Which clients are actually in-game & playing */
     public get players(): Client[] {
-        return this.clients.filter(c => c.alive);
+        return this.clients.filter(c => c.alive || c.role === ClientRole.Spectator);
     }
 
     /** Whether the game is currently running */
@@ -330,6 +396,14 @@ export class Room {
 
     /** Generate a room code. */
     public static code(): string {
-        return `${Math.floor((Math.random() * 10000 + 1000))}`;
+        const length = 6;
+
+        const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        let result = "";
+
+        for (let i = 0; i < length; i++) {
+            result += characters.charAt(Math.floor(Math.random() * characters.length));
+        }
+        return result;
     }
 }

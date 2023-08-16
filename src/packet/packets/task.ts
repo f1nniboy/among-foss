@@ -1,9 +1,9 @@
 import { Packet, PacketRequirement } from "../mod.ts";
-import { Task, Tasks } from "../../game/task.ts";
 import { PacketError } from "../error.ts";
 
 export const TaskPacket: Packet<[ string ]> = {
-    name: "TASK",
+    name: "DO",
+    description: "Complete an assigned task",
 
     requirements: [
         PacketRequirement.InGame,
@@ -11,11 +11,15 @@ export const TaskPacket: Packet<[ string ]> = {
     ],
 
     parameters: [
-        { type: "string" }
+        {
+            name: "task",
+            description: "Which task to complete",
+            type: "string"
+        }
     ],
 
     handler: async ({ client, data: [ name ] }) => {
-        if (!Tasks[name as Task]) throw new PacketError("INVALID_ARG");
-        await client.completeTask(name as Task);
+        if (!client.room!.map.task(name)) throw new PacketError("INVALID_ARG");
+        await client.completeTask(name);
     }
 }

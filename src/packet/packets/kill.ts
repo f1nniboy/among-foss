@@ -1,28 +1,28 @@
 import { Packet, PacketRequirement } from "../mod.ts";
 import { PacketError } from "../error.ts";
 
-export const VotePacket: Packet<[ string ]> = {
-    name: "VOTE",
-    description: "Vote for someone during a discussion",
+export const KillPacket: Packet<[ string ]> = {
+    name: "KILL",
+    description: "Kill another player, if you're the impostor",
+    ack: true,
 
     requirements: [
-        PacketRequirement.InDiscussion,
+        PacketRequirement.InGame,
         PacketRequirement.Alive
     ],
 
     parameters: [
         {
-            name: "target",
-            description: "Which user to vote for",
-            type: "string",
-            optional: true
+            name: "task",
+            description: "Which task to complete",
+            type: "string"
         }
     ],
 
     handler: async ({ client, data: [ name ] }) => {
         const target = client.room!.players.find(c => c.name === name) ?? null;
         if (!target || (target && target.id === client.id)) throw new PacketError("INVALID_ARG");
-
-        await client.room!.vote(client, target);
+        
+        await client.kill(target);
     }
 }
