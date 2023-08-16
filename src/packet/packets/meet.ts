@@ -8,7 +8,7 @@ export const MeetPacket: Packet<[ string ]> = {
         PacketRequirement.Alive
     ],
 
-    handler: async ({ client }) => {
-        await client.room!.startDiscussion(client);
+    handler: ({ client }) => {
+        client.room!.startDiscussion(client);
     }
 }

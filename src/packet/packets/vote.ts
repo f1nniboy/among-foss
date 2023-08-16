@@ -10,7 +10,7 @@ export const VotePacket: Packet<[ string ]> = {
     ],
 
     parameters: [
-        { type: "string" }
+        { type: "string", optional: true }
     ],
 
     handler: async ({ client, data: [ name ] }) => {

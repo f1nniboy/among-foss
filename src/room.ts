@@ -15,7 +15,10 @@ export enum RoomState {
     Main = "MAIN",
 
     /** Players can vote out others & chat */
-    Discussion = "DISCUSSION"
+    Discussion = "DISCUSSION",
+
+    /** The room is not active anymore */
+    Inactive = "INACTIVE"
 }
 
 export enum RoomVisibility {
@@ -126,7 +129,7 @@ export class Room {
 
     /** Start the voting discussion. */
     public async startDiscussion(client: Client) {
-        if (this.state === RoomState.Discussion || this.state === RoomState.Lobby) throw new PacketError("FORBIDDEN");
+        if (this.state === RoomState.Discussion || this.state === RoomState.Lobby || client.location !== Loc.Cafeteria) throw new PacketError("FORBIDDEN");
         if (client.temp.remainingDiscussions === 0) throw new PacketError("MEET_LIMIT");
 
         if (this.temp.lastDiscussion && this.temp.lastDiscussion + (this.settings.delayPerDiscussion * 1000) > Date.now()) {
@@ -143,7 +146,9 @@ export class Room {
         /** Wait until the discussion is done. */
         do {
             await new Promise(resolve => setTimeout(resolve, 1000));
-        } while (!this.clients.every(c => c.temp.voted) && started + duration > Date.now());
+        } while (!this.clients.every(c => c.temp.voted) && started + duration > Date.now() && this.state !== RoomState.Inactive);
+
+        if (this.state === RoomState.Inactive) return;
 
         /** Figure out how the discussion ended. */
         let result = DiscussionResult.Skip;
@@ -236,7 +241,7 @@ export class Room {
     public async setState(state: RoomState) {
         this.state = state;
 
-        await server.broadcast({
+        await this.broadcast({
             name: "STATE", args: state
         });
     }
@@ -265,7 +270,7 @@ export class Room {
 
         await client.room!.broadcast({
             client, name: "CHAT", args: [ client.name, content ],
-            clients: this.clients.filter(c => c.role === client.role)
+            clients: this.clients.filter(c => (c.alive && client.alive) || c.role === client.role)
         });
     }
 

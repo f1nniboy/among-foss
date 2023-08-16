@@ -59,7 +59,7 @@ class Server {
 
 	constructor() {
 		this.settings = {
-			port: 1234, duplicateConnections: false, maxRooms: 50
+			port: 3884, duplicateConnections: false, maxRooms: 50
 		};
 
 		this.listener = null!;
@@ -86,6 +86,7 @@ class Server {
 
 	/** Remove a room. */
 	public removeRoom(room: Room) {
+		room.state = RoomState.Inactive;
 		Logger.info(`Room ${colors.bold(room.name)} has been removed.`);
 
 		const index = this.rooms.indexOf(room);
@@ -141,7 +142,7 @@ class Server {
 				} else {
 					const message = this.decoder.decode(buffer.subarray(0, length));
 	
-					this.receive({
+					await this.receive({
 						client, raw: message
 					});
 				}
@@ -182,7 +183,7 @@ class Server {
 			/** Requirements of the packet */
 			const req = packet.requirements ?? [];
 
-			if ((req.includes(PacketRequirement.InRoom) || req.includes(PacketRequirement.RoomHost) || req.includes(PacketRequirement.InGame)) && client.room === null) {
+			if ((req.includes(PacketRequirement.InRoom) || req.includes(PacketRequirement.RoomHost) || req.includes(PacketRequirement.InGame) || req.includes(PacketRequirement.InDiscussion) || req.includes(PacketRequirement.Alive)) && client.room === null) {
 				throw new PacketError("NOT_IN_ROOM");
 			}
 			
@@ -223,6 +224,8 @@ class Server {
 			client.room.clean();
 		}
 
+		if (client.timer) clearInterval(client.timer);
+
 		const index = this.clients.indexOf(client);
 		this.clients.splice(index, 1);
 	}
@@ -257,8 +260,7 @@ class Server {
 			if (client.room === null) throw new PacketError("NOT_IN_ROOM");
 			if (!client.room.running || !client.temp.tasks) throw new PacketError("NOT_ACTIVE");
 
-			return Object.entries(client.temp.tasks)
-				.map(([ id, done ]) => `${id}:${Number(done)}`);
+			return client.tasks();
 
 		} else if (type === Query.Rooms) {
 			if (client.room !== null) throw new PacketError("ALREADY_IN_ROOM");
@@ -291,7 +293,7 @@ class Server {
 		if (args.r && typeof args.d === "number") this.settings.maxRooms = args.r;
 
 		if (args.h) {
-			Logger.info(`${colors.bold("Among Foss")} • ${colors.italic("A recreation of Among Us")}\n`);
+			Logger.info(`${colors.bold("Among FOSS")} • ${colors.italic("A recreation of Among Us")}\n`);
 			
 			for (const arg of ServerArguments) {
 				Logger.info(`${colors.bold(`-${arg.name}`)} • ${arg.description}`);

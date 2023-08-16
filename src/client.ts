@@ -1,7 +1,7 @@
 import { type PacketSendOptions } from "./packet/mod.ts";
 
+import { Task, Tasks, chooseRandomTasks } from "./game/task.ts";
 import { DisconnectReason } from "./packet/types/disconnect.ts";
-import { Task, chooseRandomTasks } from "./game/task.ts";
 import { Loc, Locations } from "./game/location.ts";
 import { Room, RoomNotifyType } from "./room.ts";
 import { PacketError } from "./packet/error.ts";
@@ -67,7 +67,7 @@ export class Client {
     public room: Room | null;
 
     /** The current time-out timer */
-    private timer: number | null;
+    public timer: number | null;
 
     constructor(conn: Deno.Conn, id: number) {
         this.conn = conn;
@@ -128,6 +128,19 @@ export class Client {
         this.location = Loc.Cafeteria;
     }
 
+    /** Complete an assigned task. */
+    public async completeTask(id: Task) {
+        if (!this.alive) throw new PacketError("DEAD");
+        if (this.role === ClientRole.Impostor || !this.temp.tasks) throw new PacketError("FORBIDDEN");
+        
+        /* Corresponding task data */
+        const task = Tasks[id];
+        if (this.location !== task.location) throw new PacketError("WRONG_LOC");
+
+        this.temp.tasks[id] = true;
+        await this.send({ name: "TASKS", args: this.tasks() });
+    }
+
     /** Kill the client. */
     public async kill(by?: Client) {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
@@ -135,13 +148,10 @@ export class Client {
 
         if (by) {
             await this.room.broadcast({
-                client: this, name: "DIE", args: this.name
+                client: this, name: "DIE", args: this.name,
+                clients: this.room.players.filter(c => c.location === this.location)
             });
-
-            await this
         }
-
-        
     }
 
     /** Choose tasks for the client. */
@@ -149,14 +159,12 @@ export class Client {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
 
         this.temp.tasks = chooseRandomTasks(this.room.settings.tasks);
-        await this.sendTasks();
+        await this.send({ name: "TASKS", args: this.tasks() });
     }
 
     /** Send the client their pending & completed tasks. */
-    public async sendTasks() {
-        await this.send({
-            name: "TASKS", args: Object.entries(this.temp.tasks!).map(([ id, done ]) => `${id}:${Number(done)}`)
-        });
+    public tasks(): string[] {
+        return Object.entries(this.temp.tasks!).map(([ id, done ]) => `${id}:${Tasks[id as Task].location}:${Number(done)}`);
     }
 
     /** Change the role of the client. */
@@ -199,8 +207,10 @@ export class Client {
         this.name = name;
     }
 
-    /** Refresh the time-out timer. */
+    /** Refresh the inactivity timer. */
     public ping() {
+        if (this.timer) clearTimeout(this.timer);
+
         this.timer = setTimeout(async () => {
             await this.disconnect(DisconnectReason.TimeOut);
         }, 3 * 60 * 1000);

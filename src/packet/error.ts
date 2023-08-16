@@ -20,6 +20,9 @@ type PacketErrorName =
     /** Discussion */
     | "MEET_LIMIT" | "ALREADY_VOTED"
 
+    /** Task */
+    | "WRONG_LOC"
+
     /** Room */
     | "NOT_IN_ROOM" | "ALREADY_IN_ROOM" | "ALREADY_RUNNING" | "NOT_ROOM_HOST" | "MAX_ROOMS" | "MAX_PLAYERS"
 

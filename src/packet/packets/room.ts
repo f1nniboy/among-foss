@@ -32,8 +32,12 @@ export const RoomPacket: Packet<[ string ]> = {
         } else if (action === "create") {
             if (client.room !== null) throw new PacketError("ALREADY_IN_ROOM");
 
+            const visibility: RoomVisibility = [ RoomVisibility.Public, RoomVisibility.Private ].includes(args[0] as RoomVisibility)
+                ? args[0] as RoomVisibility 
+                : RoomVisibility.Public;
+
             /* Create a new room. */
-            const room = server.createRoom(client, RoomVisibility.Public);
+            const room = server.createRoom(client, visibility);
             await client.join(room);
 
         } else {

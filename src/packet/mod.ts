@@ -103,10 +103,9 @@ export const parseParameters = (packet: Packet, args: string[]): PacketParameter
 
     params.forEach((param, index) => {
         const arg = args[index];
-        if (!arg && !param.optional) throw new PacketError("MISSING_ARG");
 
-        // deno-lint-ignore valid-typeof
-        if (param.type !== typeof arg) throw new PacketError("INVALID_ARG");
+        if (!arg && !param.optional) throw new PacketError("MISSING_ARG");
+        else if (!arg && param.optional) return;
 
         if (param.type === "boolean") {
             parsed.push(arg === "true");

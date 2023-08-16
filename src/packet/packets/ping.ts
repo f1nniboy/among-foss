@@ -1,12 +1,15 @@
 import { Packet } from "../mod.ts";
 
-export const PingPacket: Packet = {
+export const PingPacket: Packet<[ number ]> = {
     name: "PING",
-    always: true,
 
-    handler: async ({ client }) => {
+    parameters: [
+        { type: "number", optional: true }
+    ],
+
+    handler: async ({ client, data: [ time ] }) => {
         await client.send({
-            name: "PONG", args: Date.now().toString()
+            name: "PONG", args: time ? (Date.now() - time).toString() : undefined
         });
     }
 }

@@ -11,7 +11,7 @@ export const NickPacket: Packet<[ string ]> = {
         { type: "string" }
     ],
 
-    handler: async ({ client, data: [ name ] }) => {
+    handler: ({ client, data: [ name ] }) => {
         if (client.name !== null) throw new PacketError("NICK_SET");
 
         if (server.clients.some(c => c.name === name)) throw new PacketError("NICK_TAKEN");
@@ -19,7 +19,7 @@ export const NickPacket: Packet<[ string ]> = {
         if (name.length < 2) throw new PacketError("NICK_TOO_SHORT");
         if (!name.match(/^[a-z0-9_.-]+$/)) throw new PacketError("INVALID_NICK");
 
-        await client.setName(name);
+        client.setName(name);
 
         const rooms = server.query(Query.Rooms, client);
         return { name: "ROOMS", args: rooms };
