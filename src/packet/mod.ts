@@ -21,12 +21,21 @@ export enum PacketRequirement {
     RoomHost,
 
     /** The client has to be in a game round */
-    InGame
+    InGame,
+
+    /** The client has to be in a game discussion */
+    InDiscussion,
+
+    /** The client has to be alive, either a crewmate or impostor */
+    Alive
 }
 
 export interface Packet<Data extends Array<PacketParameterType> = Array<PacketParameterType>> {
     /** Name of the packet */
     name: PacketName;
+
+    /** Whether this packet also works when the user has not authenticated yet */
+    always?: boolean;
 
     /** Parameters of the packet */
     parameters?: PacketParameter[] | PacketParameter;
@@ -35,7 +44,7 @@ export interface Packet<Data extends Array<PacketParameterType> = Array<PacketPa
     requirements?: PacketRequirement[];
 
     /** Handler of the packet */
-    handler: (data: PacketHandlerData<Data>) => PacketReply | void;
+    handler: (data: PacketHandlerData<Data>) => Promise<PacketReply | void> | PacketReply | void;
 }
 
 interface PacketHandlerData<Data extends Array<PacketParameterType>> {

@@ -8,6 +8,6 @@ export const StartPacket: Packet = {
     ],
 
     handler: ({ client }) => {
-        client.room!.start();
+        client.room!.startGame();
     }
 }

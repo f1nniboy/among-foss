@@ -7,7 +7,7 @@ export const RoomPacket: Packet<[ string ]> = {
     name: "ROOM",
     parameters: [ { type: "string" } ],
 
-    handler: ({ client, data: [ action ], args }) => {
+    handler: async ({ client, data: [ action ], args }) => {
         action = action.toLowerCase();
         args.shift();
 
@@ -21,12 +21,12 @@ export const RoomPacket: Packet<[ string ]> = {
             const room = server.rooms.find(r => r.code === code);
             if (!room) throw new PacketError("INVALID_ARG");
 
-            client.join(room);
+            await client.join(room);
 
         /** Leave the current room */
         } else if (action === "leave") {
             if (client.room === null) throw new PacketError("NOT_IN_ROOM");
-            client.leave();
+            await client.leave();
 
         /** Create a room */
         } else if (action === "create") {
@@ -34,7 +34,7 @@ export const RoomPacket: Packet<[ string ]> = {
 
             /* Create a new room. */
             const room = server.createRoom(client, RoomVisibility.Public);
-            client.join(room);
+            await client.join(room);
 
         } else {
             throw new PacketError("INVALID_ARG");

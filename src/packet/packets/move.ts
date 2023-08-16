@@ -13,8 +13,14 @@ export const MovePacket: Packet<[ string ]> = {
         { type: "string" }
     ],
 
-    handler: ({ client, data: [ loc ] }) => {
+    handler: async ({ client, data: [ loc ] }) => {
+        if (client.temp.lastMove && client.temp.lastMove + (client.room!.settings.delayPerMove * 1000) > Date.now()) {
+            throw new PacketError("COOL_DOWN");
+        }
+
         if (!Locations[loc as Loc]) throw new PacketError("INVALID_LOC");
-        client.setLocation(loc as Loc);
+        if (client.location === loc) throw new PacketError("ALREADY_LOC");
+
+        await client.setLocation(loc as Loc);
     }
 }

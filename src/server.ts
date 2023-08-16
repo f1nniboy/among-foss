@@ -10,7 +10,7 @@ import {
 	parseParameters
 } from "./packet/mod.ts";
 
-import { Room, RoomNotifyType, RoomVisibility } from "./room.ts";
+import { Room, RoomNotifyType, RoomState, RoomVisibility } from "./room.ts";
 import { LogType, Logger } from "./utils/logger.ts";
 import { Packets } from "./packet/packets/mod.ts";
 import { Query } from "./packet/types/query.ts";
@@ -122,9 +122,11 @@ class Server {
 	private async handle(client: Client) {
 		Logger.info("Client", colors.bold(`#${client.id}`), "has connected.");
 
-		client.send({
-			name: "SERVER", args: [ "0.0.1", this.clients.length ]
+		await client.send({
+			name: "SERVER", args: [ "0.0.1", this.clients.filter(c => c.active).length ]
 		});
+
+		client.ping();
 
 		/* Buffer to read data into */
 		const buffer = new Uint8Array(1024);
@@ -153,7 +155,7 @@ class Server {
 	}
 
 	/** Process a message received by the client. */
-	private receive({ client, raw }: PacketReceiveOptions) {
+	private async receive({ client, raw }: PacketReceiveOptions) {
 		/* All parts of the message */
 		const parts = raw.slice(0, -1).split(" ");
 
@@ -165,17 +167,16 @@ class Server {
 
 		if (!packet) {
 			Logger.warn("Client", colors.bold(`#${client.id}`), "sent an invalid packet.");
-			client.send({ name: "ERR", args: "INVALID_CMD" });
-
-			return;
+			return client.send({ name: "ERR", args: "INVALID_CMD" });
 		}
 
 		/* If the client hasn't chosen a name yet, ... */
-		if (!client.active && packet.name !== "NICK") {
+		if (!client.active && !packet.always) {
 			return client.send({ name: "ERR", args: "CHOOSE_NICK" });
 		}
 
 		Logger.debug(colors.bold(`#${client.id}`), "->", colors.italic(name), colors.italic(parts.join(" ")));
+		client.ping();
 
 		try {
 			/** Requirements of the packet */
@@ -190,17 +191,26 @@ class Server {
 			}
 
 			if (req.includes(PacketRequirement.InGame) && !client.room?.running) {
-				throw new PacketError("GAME_NOT_ACTIVE");
+				throw new PacketError("NOT_ACTIVE");
 			}
 
-			const reply = packet.handler({
+			if (req.includes(PacketRequirement.InDiscussion) && client.room?.state !== RoomState.Discussion) {
+				throw new PacketError("FORBIDDEN");
+			}
+
+			if (req.includes(PacketRequirement.Alive) && !client.alive) {
+				throw new PacketError("DEAD");
+			}
+
+			const reply = await packet.handler({
 				client, args: parts, data: parseParameters(packet, parts) as Array<PacketParameterType>
 			});
 
-			if (reply) client.send(reply);
+			if (reply) await client.send(reply);
 
 		} catch (error) {
-			client.send({ name: "ERR", args: error.message });
+			if (!(error instanceof PacketError)) Logger.error(`Client ${colors.bold(`#${client.id}`)} encountered an error`, colors.bold("->"), error);
+			await client.send({ name: "ERR", args: error instanceof PacketError ? error.message : "UNKNOWN" });
 		}
 	}
 
@@ -218,22 +228,22 @@ class Server {
 	}
 
 	/** Send a packet to a client, or broadcast it. */
-	public send({ client, name, args: rawArgs }: PacketSendOptions) {
+	public async send({ client, name, args: rawArgs }: PacketSendOptions) {
 		let args: string[] = rawArgs ? (typeof rawArgs === "string" ? [ rawArgs ] : rawArgs as string[]) : [];
 		args = args.map(a => a.toString().includes(" ") && args.length > 1 ? `:${a}` : a.toString());
 
 		/* The raw data to send */
 		const raw = `${name}${args.length > 0 ? ` ${args.join(" ")}` : ""}\n`;
 
-		client.conn.write(this.encoder.encode(raw));
+		await client.conn.write(this.encoder.encode(raw));
 		Logger.debug(colors.bold(`#${client.id}`), "<-", colors.italic(raw.slice(0, -1)));
 	}
 
 	/** Broadcast a packet to all connected clients. */
-	public broadcast({ client: except, clients, name, args }: PacketBroadcastOptions) {
+	public async broadcast({ client: except, clients, name, args }: PacketBroadcastOptions) {
 		for (const client of clients ?? this.clients.filter(c => c.active)) {
 			if (except && client.id === except.id) continue;
-			this.send({ client, name, args });
+			await this.send({ client, name, args });
 		}
 	}
 
@@ -245,9 +255,9 @@ class Server {
 
 		} else if (type === Query.Tasks) {
 			if (client.room === null) throw new PacketError("NOT_IN_ROOM");
-			if (!client.room.running || !client.tasks) throw new PacketError("GAME_NOT_ACTIVE");
+			if (!client.room.running || !client.temp.tasks) throw new PacketError("NOT_ACTIVE");
 
-			return Object.entries(client.tasks)
+			return Object.entries(client.temp.tasks)
 				.map(([ id, done ]) => `${id}:${Number(done)}`);
 
 		} else if (type === Query.Rooms) {
@@ -256,6 +266,12 @@ class Server {
 			return this.rooms
 				.filter(r => r.visibility === RoomVisibility.Public)
 				.map(r => `${r.name}:${r.code}`);
+
+		} else if (type === Query.Progress) {
+			if (client.room === null) throw new PacketError("NOT_IN_ROOM");
+			if (!client.room.running) throw new PacketError("NOT_ACTIVE");
+
+			return client.room.progress();
 		}
 
 		throw new PacketError("INVALID_QUERY");

@@ -5,12 +5,13 @@ import { Packet } from "../mod.ts";
 
 export const NickPacket: Packet<[ string ]> = {
     name: "NICK",
+    always: true,
 
     parameters: [
         { type: "string" }
     ],
 
-    handler: ({ client, data: [ name ] }) => {
+    handler: async ({ client, data: [ name ] }) => {
         if (client.name !== null) throw new PacketError("NICK_SET");
 
         if (server.clients.some(c => c.name === name)) throw new PacketError("NICK_TAKEN");
@@ -18,7 +19,7 @@ export const NickPacket: Packet<[ string ]> = {
         if (name.length < 2) throw new PacketError("NICK_TOO_SHORT");
         if (!name.match(/^[a-z0-9_.-]+$/)) throw new PacketError("INVALID_NICK");
 
-        client.setName(name);
+        await client.setName(name);
 
         const rooms = server.query(Query.Rooms, client);
         return { name: "ROOMS", args: rooms };

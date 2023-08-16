@@ -1,22 +1,20 @@
 import { type PacketSendOptions } from "./packet/mod.ts";
 
+import { DisconnectReason } from "./packet/types/disconnect.ts";
 import { Task, chooseRandomTasks } from "./game/task.ts";
+import { Loc, Locations } from "./game/location.ts";
 import { Room, RoomNotifyType } from "./room.ts";
 import { PacketError } from "./packet/error.ts";
 import { Query } from "./packet/types/query.ts";
 import { connToString } from "./utils/ip.ts";
-import { Loc, Locations } from "./game/location.ts";
 import { server } from "./server.ts";
 
 export enum ClientState {
     /** The client has connected, but not chosen a name yet */
     Idle = "IDLE",
 
-    /** The client is connected & in the lobby, searching for a room */
-    InLobby = "LOBBY",
-
-    /** The client is connected & in a room */
-    InRoom = "ROOM"
+    /** The client is connected */
+    Connected = "LOBBY"
 }
 
 export enum ClientRole {
@@ -24,6 +22,23 @@ export enum ClientRole {
     Impostor = "IMPOSTOR",
     Spectator = "SPECTATOR",
     None = "NONE"
+}
+
+interface ClientTemporaryData {
+    /* When the client did their last move */
+    lastMove: number | null;
+
+    /* How many discussions the client has remaining */
+    remainingDiscussions: number;
+
+    /** Tasks assigned to the client */
+    tasks: Partial<Record<Task, boolean>> | null;
+
+    /** Whether the client has voted already */
+    voted: boolean;
+
+    /** Amount of votes for the client */
+    votes: number;
 }
 
 export class Client {
@@ -45,14 +60,14 @@ export class Client {
     /** Location of the client */
     public location: Loc;
 
-    /* When the client did their last move */
-    public lastMove: number | null;
-
-    /** Tasks assigned to the client */
-    public tasks: Partial<Record<Task, boolean>> | null;
+    /** Temporary data, used during the game */
+    public temp: ClientTemporaryData;
 
     /** Which room the client is in */
     public room: Room | null;
+
+    /** The current time-out timer */
+    private timer: number | null;
 
     constructor(conn: Deno.Conn, id: number) {
         this.conn = conn;
@@ -62,14 +77,16 @@ export class Client {
         this.state = ClientState.Idle;
         this.role = ClientRole.None;
 
-        this.lastMove = null;
-        this.tasks = null;
+        this.timer = null;
         this.name = null!;
         this.room = null;
+
+        this.temp = null!;
+        this.clean();
     }
 
     /** Join a room. */
-    public join(room: Room) {
+    public async join(room: Room) {
         if (this.room !== null) throw new PacketError("ALREADY_IN_ROOM");
         if (room.running) throw new PacketError("ALREADY_RUNNING");
 
@@ -80,7 +97,7 @@ export class Client {
         this.room = room;
         this.room.notify(this, RoomNotifyType.RoomEnter);
 
-        this.send({
+        await this.send({
             name: "ROOM", args: [
                 room.name, room.code, room.visibility
             ]
@@ -88,39 +105,70 @@ export class Client {
     }
 
     /** Leave the current room. */
-    public leave() {
+    public async leave() {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
 
-        this.room.notify(this, RoomNotifyType.RoomLeave);
+        await this.room.notify(this, RoomNotifyType.RoomLeave);
         this.room.clean();
 
         this.room = null;
+        this.clean();
 
         const rooms = server.query(Query.Rooms, this);
-        this.send({ name: "ROOMS", args: rooms });
+        await this.send({ name: "ROOMS", args: rooms });
+    }
+    
+    /** Clean up all game-related variables. */
+    public clean() {
+        this.temp = {
+            lastMove: null, tasks: null, remainingDiscussions: 0, voted: false, votes: 0
+        };
+
+        this.role = ClientRole.None;
+        this.location = Loc.Cafeteria;
+    }
+
+    /** Kill the client. */
+    public async kill(by?: Client) {
+        if (this.room === null) throw new PacketError("NOT_IN_ROOM");
+        await this.setRole(ClientRole.Spectator);
+
+        if (by) {
+            await this.room.broadcast({
+                client: this, name: "DIE", args: this.name
+            });
+
+            await this
+        }
+
+        
     }
 
     /** Choose tasks for the client. */
-    public chooseTasks() {
+    public async chooseTasks() {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
-        this.tasks = chooseRandomTasks(this.room.settings.tasks);
 
-        this.send({
-            name: "TASKS",
-            args: Object.entries(this.tasks).map(([ id, done ]) => `${id}:${Number(done)}`)
+        this.temp.tasks = chooseRandomTasks(this.room.settings.tasks);
+        await this.sendTasks();
+    }
+
+    /** Send the client their pending & completed tasks. */
+    public async sendTasks() {
+        await this.send({
+            name: "TASKS", args: Object.entries(this.temp.tasks!).map(([ id, done ]) => `${id}:${Number(done)}`)
         });
     }
 
     /** Change the role of the client. */
-    public setRole(role: ClientRole) {
+    public async setRole(role: ClientRole) {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
 
         this.role = role;
-        this.send({ name: "ROLE", args: role });
+        await this.send({ name: "ROLE", args: role });
     }
 
     /** Change the location of the client. */
-    public setLocation(location: Loc) {
+    public async setLocation(location: Loc) {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
 
         /* Whether the new location is next to the previous one */
@@ -139,19 +187,38 @@ export class Client {
             );
         }
 
+        this.temp.lastMove = Date.now();
         this.location = location;
-        this.send({ name: "LOCATION", args: location });
+
+        await this.send({ name: "LOCATION", args: location });
     }
 
     /** Set the name of the client. */
     public setName(name: string) {
-        this.state = ClientState.InLobby;
+        this.state = ClientState.Connected;
         this.name = name;
+    }
+
+    /** Refresh the time-out timer. */
+    public ping() {
+        this.timer = setTimeout(async () => {
+            await this.disconnect(DisconnectReason.TimeOut);
+        }, 3 * 60 * 1000);
+    }
+
+    /** Disconnect the client. */
+    public async disconnect(reason: DisconnectReason) {
+        await this.send({
+            name: "PART", args: reason
+        });
+
+        if (this.timer) clearTimeout(this.timer);
+        this.conn.close();
     }
 
     /** Send a packet to this client. */
     public send(options: Omit<PacketSendOptions, "client">) {
-        server.send({ client: this, ...options });
+        return server.send({ client: this, ...options });
     }
 
     /** Check whether this connection is identical to another, using the IP address. */
@@ -165,5 +232,9 @@ export class Client {
 
     public get active(): boolean {
         return this.state !== ClientState.Idle;
+    }
+
+    public get alive(): boolean {
+        return this.role === ClientRole.Crewmate || this.role === ClientRole.Impostor;
     }
 }

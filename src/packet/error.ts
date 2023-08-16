@@ -12,16 +12,19 @@ type PacketErrorName =
     | "MISSING_ARG" | "INVALID_ARG"
 
     /** Game */
-    | "NOT_ENOUGH_PLAYERS" | "GAME_ALREADY_STARTED"  | "GAME_NOT_ACTIVE"
+    | "NOT_ENOUGH_PLAYERS" | "ALREADY_STARTED"  | "NOT_ACTIVE" | "DEAD"
 
     /** Location */
-    | "INVALID_LOC"
+    | "INVALID_LOC" | "ALREADY_LOC"
+
+    /** Discussion */
+    | "MEET_LIMIT" | "ALREADY_VOTED"
 
     /** Room */
     | "NOT_IN_ROOM" | "ALREADY_IN_ROOM" | "ALREADY_RUNNING" | "NOT_ROOM_HOST" | "MAX_ROOMS" | "MAX_PLAYERS"
 
     /** Generic errors */
-    | "FORBIDDEN" | "INVALID_CMD" | "NOT_IMPLEMENTED" | "ALREADY_CONN"
+    | "COOL_DOWN" | "FORBIDDEN" | "TIME_OUT" | "INVALID_CMD" | "NOT_IMPLEMENTED" | "ALREADY_CONN"
 
 export class PacketError extends Error {
     constructor(name: PacketErrorName) {
