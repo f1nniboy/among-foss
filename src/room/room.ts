@@ -36,14 +36,19 @@ export enum RoomNotifyType {
     RoomLeave = "PART",
 
     LocationEnter = "ENTER",
-    LocationLeave = "LEAVE"
+    LocationLeave = "LEAVE",
+
+    VentEnter = "VENT_ENTER",
+    VentLeave = "VENT_LEAVE"
 }
 
 export enum RoomDataType {
     Create = "CREATE",
     Update = "UPDATE",
     Delete = "DELETE",
-    Join = "JOIN"
+    Join = "JOIN",
+    Sync = "SYNC",
+    End = "END"
 }
 
 interface RoomSettings {
@@ -53,6 +58,9 @@ interface RoomSettings {
 
         /** How many seconds should be between each kill an impostor can do */
         kill: number;
+
+        /** How many seconds should be between each vent an impostor can use */
+        vent: number;
 
         /** How many seconds of delay should be after a user calls a discussion */
         discussion: number;
@@ -135,11 +143,11 @@ export class Room {
             map: "SKELD",
 
             delays: {
-                move: 10, discussion: 60, kill: 90
+                move: 10, vent: 15, discussion: 60, kill: 60
             },
 
             minPlayers: 1, maxPlayers: 10,
-            tasks: 5, discussions: 2
+            tasks: 8, discussions: 2
         };
 
         Logger.info(`Room ${colors.bold(this.name)} has been created.`);
@@ -265,6 +273,8 @@ export class Room {
 
     /** Check whether either role has won the game. */
     public check() {
+        if (this.state === RoomState.Inactive || this.state === RoomState.Lobby) return;
+
         /* If the impostor is dead (was voted out of the game), ... */
         if (this.temp.impostor && this.temp.impostor.role !== ClientRole.Impostor) return this.end(ClientRole.Crewmate);
 
@@ -368,7 +378,9 @@ export class Room {
     /** Notify other clients when a client joins or leaves. */
     public notify(client: Client, type: RoomNotifyType, clients?: Client[]) {
         return this.broadcast({
-            client, clients, name: type, args: client.name
+            client, clients, name: "LOC", args: [
+                type, client.name
+            ]
         });
     }
 

@@ -8,16 +8,16 @@ Nicknames must be between **2-32 characters** long, may only contain `_`, `.`, a
 ```
 <- SERVER <VERSION> <ROOM COUNT> <CLIENT COUNT>
 -> NICK player1
-<- ROOM CREATE ...
+<- ROOM SYNC ...
 ...
-<- ROOM
+<- ROOM END
 ```
 
 As soon as clients join, they will receive various `ROOM CREATE` packets and a single `ROOM` packets at the end.
 This list is also sent whenever the client leaves a lobby. All of these packets contain information about public game lobbies.
 
-`ROOM CREATE <NICK> <CODE> <MAP> <GAME RUNNING?> <CONNECTED CLIENTS> <MAX CLIENTS>`
-*e.g.* `ROOM CREATE player1 LBYGWN SKELD 0 1 10`
+`ROOM SYNC <NICK> <CODE> <MAP> <GAME RUNNING?> <CONNECTED CLIENTS> <MAX CLIENTS>`
+*e.g.* `ROOM SYNC player1 LBYGWN SKELD 0 1 10`
 
 If no public game lobbies are available, you will simply receive an empty `ROOM` packet.
 
@@ -74,10 +74,10 @@ These settings may be configured in the lobby, by the game host.
 
 ## Room joins & leaves
 **Client joins the room**:
-`<- JOIN <name>`
+`<- LOC JOIN <name>`
 
 **Client leaves the room**:
-`<- PART <name>`
+`<- LOC PART <name>`
 
 ## Starting the game as the host
 ```
@@ -109,6 +109,8 @@ The `START` packet may be sent by the room host if there are enough players. The
 ```
 
 By default, there's a **10 second** cool-down for moving between locations. The new location must be a neighbor of the preivous location.
+
+Other clients in the room will receive `LOC ENTER <NAME>` when you enter their room, and `LOC LEAVE <NAME>` once you leave it.
 
 ## Doing a task
 ```
@@ -176,6 +178,17 @@ Calling it without a player name acts a vote to skip the discussion.
 <- ROLE SPECTATOR
 ```
 
+## Venting as the impostor
+```
+-> VENT player2
+<- DIE player2
+...
+```
+
+As this is a pretty OP tool, other clients in the previous & new room will be notified.
+- Previous room: `LOC VENT_LEAVE <NAME>`
+- New room: `LOC VENT_ENTER <NAME>`
+
 ## Winning the game
 **Impostor wins the game**, e.g. by killing all crewmates or sabotaging:
 ```
@@ -198,7 +211,7 @@ Calling it without a player name acts a vote to skip the discussion.
 | ----------- | ------------------------------------- |
 | `SERVER`    | Initial information about the server  |
 | `ERR`       | Error information, if a packet failed |
-| `ROOM`      | Information about rooms               |
+| `ROOM ...`  | Information about rooms               |
 | `LOCATION`  | The client's location in the map      |
 | `TASKS`     | The client's assigned tasks           |
 | `STATE`     | State of the running game             |
@@ -221,3 +234,4 @@ Calling it without a player name acts a vote to skip the discussion.
 | `KILL ...`   | Kill another player, as the impostor                   | 
 | `MOVE ...`   | Move between locations                                 |
 | `TASK ...`   | Complete a task in the current location                |
+| `VENT ...`   | Vent to another location with a vent, as the impostor  |

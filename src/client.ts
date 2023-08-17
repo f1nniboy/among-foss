@@ -146,6 +146,21 @@ export class Client {
         }
     }
 
+    /** Vent through to to another room. */
+    public async vent(id: LocationID) {
+        if (this.role !== ClientRole.Impostor) throw new PacketError("FORBIDDEN");
+        if (this.hasCooldown("vent")) throw new PacketError("COOL_DOWN");
+
+        const from = this.room!.map!.location(this.location)!;
+        const to = this.room!.map!.location(id);
+
+        if (!to) throw new PacketError("INVALID_LOC");
+        if (!from.vent || !to.vent) throw new PacketError("NO_VENT");
+
+        this.setCooldown("vent", this.room!.settings.delays.vent * 1000);
+        await this.setLocation(id, false, true);
+    }
+
     /** Kill another client. */
     public async kill(target: Client) {
         if (
@@ -204,12 +219,12 @@ export class Client {
     }
 
     /** Change the location of the client. */
-    public async setLocation(location: LocationID, instant = false) {
+    public async setLocation(location: LocationID, instant = false, vent = false) {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
         if (!instant && this.location === location) throw new PacketError("ALREADY_LOC");
 
         /* Whether the new location is next to the previous one */
-        const neighboring: boolean = instant
+        const neighboring: boolean = instant || vent
             || this.role === ClientRole.Spectator
             || this.location === location
             || this.room.map!.location(this.location)!.doors.includes(location);
@@ -219,16 +234,20 @@ export class Client {
         if (this.room.running) {
             /* Location leave */
             this.room.notify(
-                this, RoomNotifyType.LocationLeave, this.room.clients.filter(c => c.location === this.location)
+                this, vent ? RoomNotifyType.VentLeave : RoomNotifyType.LocationLeave,
+                this.room.clients.filter(c => c.location === this.location)
             );
 
             /* Location enter */
             this.room.notify(
-                this, RoomNotifyType.LocationEnter, this.room.clients.filter(c => c.location === location)
+                this, vent ? RoomNotifyType.VentEnter : RoomNotifyType.LocationEnter,
+                this.room.clients.filter(c => c.location === location)
             );
         }
 
         this.setCooldown("move", this.room.settings.delays.move * 1000);
+
+        await this.send({ name: "LOCATION", args: location });
         this.location = location;
 
         if (!instant) await this.send({
@@ -241,7 +260,6 @@ export class Client {
             ]
         });
         
-        await this.send({ name: "LOCATION", args: location });
         if (!instant) await this.room.check();
     }
 

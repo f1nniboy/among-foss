@@ -43,7 +43,7 @@ export class SkeldMap extends GameMap {
                 O2: { name: "O2", doors: ["CAFETERIA", "NAVIGATION", "WEAPONS"], vent: false },
                 WEAPONS: { name: "Weapons", doors: ["CAFETERIA", "O2"], vent: true },
                 UPPER_ENGINE: { name: "Upper Engine", doors: ["CAFETERIA", "MEDBAY", "SECURITY"], vent: false },
-                LOWER_ENGINE: { name: "Lower Engine", doors: ["ELECTRICAL", "REACTOR"], vent: false },
+                LOWER_ENGINE: { name: "Lower Engine", doors: ["ELECTRICAL", "REACTOR"], vent: false }
             },
 
             spawn: "CAFETERIA"

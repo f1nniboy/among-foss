@@ -11,8 +11,12 @@ import { VotePacket } from "./vote.ts";
 import { PingPacket } from "./ping.ts";
 import { TaskPacket } from "./task.ts";
 import { KillPacket } from "./kill.ts";
+import { VentPacket } from "./vent.ts";
 
 // deno-lint-ignore no-explicit-any
 export const Packets: Packet<any>[] = [
-    NickPacket, ChatPacket, StartPacket, RoomPacket, MovePacket, MeetPacket, VotePacket, PingPacket, TaskPacket, KillPacket, ReportPacket
+    NickPacket, ChatPacket, StartPacket,
+    RoomPacket, MovePacket, MeetPacket,
+    VotePacket, PingPacket, TaskPacket,
+    KillPacket, ReportPacket, VentPacket
 ]

@@ -270,11 +270,11 @@ class Server {
 	/* Send a list of all rooms to the client. */
 	public async sendRoomList(client: Client) {
 		for (const room of this.rooms.filter(r => r.public)) {
-			await client.send(room.data(RoomDataType.Create));
+			await client.send(room.data(RoomDataType.Sync));
 		}
 
 		/* Always send an empty ROOM packet at the end. */
-		await client.send({ name: "ROOM" });
+		await client.send({ name: "ROOM", args: "END" });
 	}
 
 	/** Clients that have not joined a room yet */

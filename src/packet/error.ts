@@ -20,6 +20,9 @@ type PacketErrorName =
     /** Task */
     | "WRONG_LOC" | "ALREADY_DONE"
 
+    /** Vent */
+    | "NO_VENT"
+
     /** Room */
     | "NOT_IN_ROOM" | "ALREADY_IN_ROOM" | "NOT_ROOM_HOST" | "MAX_ROOMS" | "MAX_PLAYERS"
 
