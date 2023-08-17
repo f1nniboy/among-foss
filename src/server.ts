@@ -80,9 +80,7 @@ class Server {
 			host, visibility, code: Room.code()
 		});
 
-		await this.broadcast({
-			clients: this.lurkers.filter(c => c.id !== host.id), ...room.data(RoomDataType.Create)
-		});
+		await room.pushListData(RoomDataType.Create, this.lurkers.filter(c => c.id !== host.id));
 
 		this.rooms.push(room);
 		return room;
@@ -93,9 +91,7 @@ class Server {
 		room.state = RoomState.Inactive;
 		Logger.info(`Room ${colors.bold(room.name)} has been removed.`);
 
-		await this.broadcast({
-			clients: this.lurkers.filter(c => c.id !== room.host.id), ...room.data(RoomDataType.Delete)
-		});
+		await room.pushListData(RoomDataType.Delete, this.lurkers.filter(c => c.id !== room.host.id));
 
 		const index = this.rooms.indexOf(room);
 		this.rooms.splice(index, 1);
@@ -114,7 +110,7 @@ class Server {
 			if (!this.settings.duplicateConnections && this.clients.some(c => c.compare(conn))) {
 				Logger.warn("IP", colors.bold(connToString(conn)), "tried to connect twice, but duplicate connections are not allowed.");
 
-				conn.write(this.encoder.encode("ERROR ALREADY_CONN"));
+				conn.write(this.encoder.encode("PART ALREADY_CONN"));
 				conn.close();
 
 				continue;
@@ -132,7 +128,7 @@ class Server {
 		Logger.info("Client", colors.bold(`#${client.id}`), "has connected.");
 
 		await client.send({
-			name: "SERVER", args: [ Constants.VERSION, this.clients.filter(c => c.active).length, this.rooms.length ]
+			name: "SERVER", args: [ Constants.VERSION, this.rooms.length, this.clients.filter(c => c.active).length ]
 		});
 
 		client.ping();
@@ -181,11 +177,16 @@ class Server {
 
 		/* If the client hasn't chosen a name yet, ... */
 		if (!client.active && !packet.always) {
-			return client.send({ name: "ERR", args: "CHOOSE_NICK" });
+			return client.send({ name: "ERR", args: "AUTH" });
 		}
 
 		Logger.debug(colors.bold(`#${client.id}`), "->", colors.italic(name), colors.italic(parts.join(" ")));
 		client.ping();
+
+		if (packet.cooldown) {
+			if (client.hasCooldown(packet.name)) return client.send({ name: "ERR", args: "COOL_DOWN" });
+			client.setCooldown(packet.name, packet.cooldown);
+		}
 
 		try {
 			/** Requirements of the packet */
@@ -232,17 +233,22 @@ class Server {
 	/** Handle disconnections from clients. */
 	private async handleDisconnect(client: Client) {
 		Logger.info("Client", colors.bold(`#${client.id}`), "has disconnected.");
+		const room = client.room;
 
-		if (client.room) {
-			await client.room.notify(client, RoomNotifyType.RoomLeave);
-			await client.room.clean();
+		if (room) {
+			await room.notify(client, RoomNotifyType.RoomLeave);
+			await room.clean();
 		}
 
 		if (client.timer) clearInterval(client.timer);
-		if (client.room) client.room.assignHost(client);
 
 		const index = this.clients.indexOf(client);
 		this.clients.splice(index, 1);
+
+		if (room) {
+			await room.check();
+			room.assignHost();
+		}
 	}
 
 	/** Send a packet to a client, or broadcast it. */
@@ -267,12 +273,12 @@ class Server {
 
 	/* Send a list of all rooms to the client. */
 	public async sendRoomList(client: Client) {
-		for (const room of this.rooms.filter(r => r.visibility === RoomVisibility.Public)) {
+		for (const room of this.rooms.filter(r => r.public)) {
 			await client.send(room.data(RoomDataType.Create));
 		}
 
-		/* Always send an empty ROOMS packet at the end. */
-		await client.send({ name: "ROOMS" });
+		/* Always send an empty ROOM packet at the end. */
+		await client.send({ name: "ROOM" });
 	}
 
 	/** Clients that have not joined a room yet */

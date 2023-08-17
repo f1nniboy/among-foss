@@ -8,6 +8,8 @@ export const RoomPacket: Packet<[ string ]> = {
     name: "ROOM",
     description: "Create, join & delete rooms",
 
+    cooldown: 1 * 1000,
+
     parameters: [
         {
             name: "action",
@@ -18,8 +20,6 @@ export const RoomPacket: Packet<[ string ]> = {
     ],
 
     handler: async ({ client, data: [ action ], args }) => {
-        if (client.hasCooldown("room")) throw new PacketError("COOL_DOWN");
-
         action = action.toLowerCase();
         args.shift();
 
@@ -56,7 +56,7 @@ export const RoomPacket: Packet<[ string ]> = {
         } else if (action === "set") {
             if (client.room === null) throw new PacketError("NOT_IN_ROOM");
             if (client.room.host.id !== client.id) throw new PacketError("NOT_ROOM_HOST");
-            if (client.room.running) throw new PacketError("ALREADY_STARTED");
+            if (client.room.running) throw new PacketError("ALREADY_RUNNING");
 
             /* Key to update & new value */
             const key = args[0]?.toString().toLowerCase();
@@ -81,15 +81,11 @@ export const RoomPacket: Packet<[ string ]> = {
                 client.room.settings.maxPlayers = max;
             }
 
-            await server.broadcast({
-                clients: [ ...server.lurkers, ...client.room.clients ],
-                ...client.room.data(RoomDataType.Update)
-            });
+            await client.room.pushListData(RoomDataType.Update, client.room.clients);
+            await client.room.pushListData();
 
         } else {
             throw new PacketError("INVALID_ARG");
         }
-
-        client.setCooldown("room", 1 * 1000);
     }
 }

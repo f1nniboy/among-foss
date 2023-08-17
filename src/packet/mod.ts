@@ -46,6 +46,9 @@ export interface Packet<Data extends Array<PacketParameterType> = Array<PacketPa
     /** Description of the packet */
     description: string;
 
+    /** Whether this packet should have a cool-down */
+    cooldown?: number; 
+
     /** Whether this packet also works when the user has not authenticated yet */
     always?: boolean;
 

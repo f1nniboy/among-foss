@@ -56,7 +56,7 @@ interface RoomSettings {
 
         /** How many seconds of delay should be after a user calls a discussion */
         discussion: number;
-    }
+    };
 
     /** Minimum amount of players to start the game */
     minPlayers: number;
@@ -81,8 +81,19 @@ interface RoomTemporaryData {
     /** Corpses in the map; stored in a separate object to keep corpses of people who left */
     corpses: Record<string, LocationName>;
 
+    /* The current impostor */
+    impostor: Client | null;
+
     /* Skips in the current meeting */
     skips: number;
+}
+
+interface RoomProgress {
+    /** Amount of completed tasks */
+    completed: number;
+
+    /** Total amount of tasks */
+    total: number;
 }
 
 export class Room {
@@ -112,7 +123,7 @@ export class Room {
         this.map = GameMaps[0];
 
         this.temp = {
-            lastDiscussion: null, skips: 0, corpses: {}
+            lastDiscussion: null, skips: 0, corpses: {}, impostor: null
         };
 
         this.visibility = visibility;
@@ -136,7 +147,7 @@ export class Room {
 
     /** Start the game. */
     public async startGame() {
-        if (this.state !== RoomState.Lobby) throw new PacketError("ALREADY_STARTED");
+        if (this.state !== RoomState.Lobby) throw new PacketError("ALREADY_RUNNING");
         if (server.clients.length < this.settings.minPlayers) throw new PacketError("NOT_ENOUGH_PLAYERS");
 
         /* Figure out which map to use. */
@@ -150,13 +161,17 @@ export class Room {
         /* Assign clients their roles & tasks. */
         for (const [ index, client ] of this.clients.entries()) {
             await client.setRole(impostorIndex === index ? ClientRole.Impostor : ClientRole.Crewmate);
+            if (impostorIndex === index) this.temp.impostor = client;
+
             await client.setLocation(this.map.defaultLocation, true);
             
-            if (client.role !== ClientRole.Impostor) await client.assignTasks(this.settings.tasks);
+            await client.assignTasks(this.settings.tasks);
             client.temp.remainingDiscussions = this.settings.discussions;
         }
         
         await this.setState(RoomState.Main);
+        await this.pushListData();
+
         Logger.info(`Room ${colors.bold(this.name)} has started.`);
     }
 
@@ -224,6 +239,7 @@ export class Room {
         }
 
         this.temp.lastDiscussion = Date.now();
+        this.temp.corpses = {};
         this.temp.skips = 0;
 
         await this.check();
@@ -248,26 +264,33 @@ export class Room {
     }
 
     /** Check whether either role has won the game. */
-    public async check() {
-        /* TODO: Implement */
+    public check() {
+        /* If the impostor is dead (was voted out of the game), ... */
+        if (this.temp.impostor && this.temp.impostor.role !== ClientRole.Impostor) return this.end(ClientRole.Crewmate);
+
+        /* If the amount of alive players is below the minimum, ... */
+        const alive = this.players.filter(c => c.alive && c.role !== ClientRole.Impostor).length;
+        if (this.settings.minPlayers > alive) return this.end(ClientRole.Impostor);
+        
+        /* If the crewmates completed all their tasks, ... */
+        const progress = this.progress();
+        if (progress.completed === progress.total) return this.end(ClientRole.Crewmate);
     }
 
     /** End the game, with the specified winner. */
     public async end(winner: ClientRole) {
-        this.setState(RoomState.Lobby);
-
         /* Clean up everything. */
         this.temp = {
-            lastDiscussion: null, skips: 0, corpses: {}
+            lastDiscussion: null, skips: 0, corpses: {}, impostor: null
         };
 
         for (const client of this.clients) {
             client.clean();
         }
 
-        await this.broadcast({
-            name: "WIN", args: winner
-        });
+        await this.broadcast({ name: "WIN", args: winner });
+        await this.setState(RoomState.Lobby);
+        await this.pushListData();
 
         Logger.info(`Room ${colors.bold(this.name)} has ended.`);
     }
@@ -298,19 +321,23 @@ export class Room {
 
     /** Broadcast the progress of the game. */
     public async broadcastProgress() {
+        const { completed, total } = this.progress();
+        
         await this.broadcast({
-            name: "PROGRESS", args: this.progress()
+            name: "PROGRESS", args: [
+                completed.toString(), total.toString()
+            ]
         });
     }
 
     /** Progress of the game, [ completed tasks, total tasks ] */
-    public progress(): string[] {
+    public progress(): RoomProgress {
         const players = this.players.filter(c => c.role === ClientRole.Crewmate);
 
-        return [
-            players.reduce((value, client) => value + Object.entries(client.temp.tasks!).filter(([ _, done ]) => done).length, 0).toString(),
-            (players.length * this.settings.tasks).toString()
-        ];
+        return {
+            completed: players.reduce((value, client) => value + Object.entries(client.temp.tasks!).filter(([ _, done ]) => done).length, 0),
+            total: (players.length * this.settings.tasks)
+        };
     }
 
     /** Send a chat message to other clients. */
@@ -333,23 +360,27 @@ export class Room {
 
     /** Notify other clients when a client joins or leaves. */
     public async notify(client: Client, type: RoomNotifyType, clients?: Client[]) {
-        this.check();
-
         await this.broadcast({
             client, clients, name: type, args: client.name
         });
     }
 
     /** Assign a new host to the room. */
-    public assignHost(except: Client) {
-        this.host = this.clients.filter(c => c.id === except.id)[0];
+    public assignHost() {
+        this.host = this.clients[0];
+    }
+
+    public async pushListData(type: RoomDataType = RoomDataType.Update, clients?: Client[]) {
+        if (this.public) await server.broadcast({
+            clients: clients ?? server.lurkers, ...this.data(type)
+        });
     }
 
     /** Data of this room, for the room list & updates */
     public data(type: RoomDataType): PacketBroadcastOptions {
         return {
             name: "ROOM", args: [
-                type, this.name, this.code, this.settings.map, this.clients.length, this.settings.maxPlayers
+                type, this.name, this.code, this.settings.map, Number(this.running), this.clients.length, this.settings.maxPlayers
             ]
         };
     }
@@ -377,6 +408,11 @@ export class Room {
     /** Which clients are actually in-game & playing */
     public get players(): Client[] {
         return this.clients.filter(c => c.alive || c.role === ClientRole.Spectator);
+    }
+
+    /** Whether this room is public & visible in the server list */
+    public get public(): boolean {
+        return this.visibility === RoomVisibility.Public;
     }
 
     /** Whether the game is currently running */

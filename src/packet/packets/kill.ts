@@ -4,7 +4,6 @@ import { PacketError } from "../error.ts";
 export const KillPacket: Packet<[ string ]> = {
     name: "KILL",
     description: "Kill another player, if you're the impostor",
-    ack: true,
 
     requirements: [
         PacketRequirement.InGame,

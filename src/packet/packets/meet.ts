@@ -6,7 +6,6 @@ export const MeetPacket: Packet<[ string ]> = {
     description: "Call a meeting",
 
     requirements: [
-        PacketRequirement.InRoom,
         PacketRequirement.Alive
     ],
 

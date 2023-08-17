@@ -105,9 +105,7 @@ export class Client {
             ]
         });
 
-        await server.broadcast({
-            clients: server.lurkers, ...room.data(RoomDataType.Update)
-        });
+        await room.pushListData(); 
     }
 
     /** Leave the current room. */
@@ -121,11 +119,8 @@ export class Client {
         this.room = null;
         this.clean();
 
+        if (room.state !== RoomState.Inactive) await room.pushListData();
         await server.sendRoomList(this);
-
-        if (room.state !== RoomState.Inactive) await server.broadcast({
-            clients: server.lurkers, ...room.data(RoomDataType.Update)
-        });
     }
     
     /** Clean up all game-related variables. */
@@ -161,7 +156,9 @@ export class Client {
         this.room!.temp.corpses[target.name] = this.location;
 
         this.setCooldown("kill", this.room!.settings.delays.kill * 1000);
+
         await target.die(true);
+        await this.room!.check();
     }
 
     /** Complete an assigned task. */
@@ -209,9 +206,14 @@ export class Client {
     /** Change the location of the client. */
     public async setLocation(location: LocationName, instant = false) {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
+        if (!instant && this.location === location) throw new PacketError("ALREADY_LOC");
 
         /* Whether the new location is next to the previous one */
-        const neighboring: boolean = instant || this.location === location || this.room.map.location(this.location)!.doors.includes(location);
+        const neighboring: boolean = instant
+            || this.role === ClientRole.Spectator
+            || this.location === location
+            || this.room.map.location(this.location)!.doors.includes(location);
+        
         if (!neighboring) throw new PacketError("INVALID_LOC");
 
         if (this.room.running) {
@@ -229,8 +231,18 @@ export class Client {
         this.setCooldown("move", this.room.settings.delays.move * 1000);
         this.location = location;
 
-        await this.send({ name: "PLAYERS", args: this.room.players.filter(c => c.id !== this.id).map(c => c.name) });
+        if (!instant) await this.send({
+            name: "PLAYERS", args: [
+                ...this.room.players.filter(c => c.id !== this.id && c.location === this.location && c.alive).map(c => c.name),
+
+                ...Object.entries(this.room.temp.corpses)
+                    .filter(([ _, location ]) => location === this.location)
+                    .map(([ name ]) => `#${name}`)
+            ]
+        });
+        
         await this.send({ name: "LOCATION", args: location });
+        if (!instant) await this.room.check();
     }
 
     /** Set the name of the client. */
