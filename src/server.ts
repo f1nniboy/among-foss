@@ -185,7 +185,6 @@ class Server {
 
 		if (packet.cooldown) {
 			if (client.hasCooldown(packet.name)) return client.send({ name: "ERR", args: "COOL_DOWN" });
-			client.setCooldown(packet.name, packet.cooldown);
 		}
 
 		try {
@@ -218,11 +217,8 @@ class Server {
 
 			if (reply) await client.send(reply);
 
-			if (packet.ack) {
-				await client.send({
-					name: "OK", args: [ name, ...parts ]
-				})
-			}
+			if (packet.ack) await client.send({ name: "OK", args: [ name, ...parts ] });
+			if (packet.cooldown) client.setCooldown(packet.name, packet.cooldown);
 
 		} catch (error) {
 			if (!(error instanceof PacketError)) Logger.error(`Client ${colors.bold(`#${client.id}`)} encountered an error`, colors.bold("->"), error);

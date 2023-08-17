@@ -56,7 +56,7 @@ export const RoomPacket: Packet<[ string ]> = {
         } else if (action === "set") {
             if (client.room === null) throw new PacketError("NOT_IN_ROOM");
             if (client.room.host.id !== client.id) throw new PacketError("NOT_ROOM_HOST");
-            if (client.room.running) throw new PacketError("ALREADY_RUNNING");
+            if (client.room.running) throw new PacketError("ALREADY_ACTIVE");
 
             /* Key to update & new value */
             const key = args[0]?.toString().toLowerCase();
@@ -68,7 +68,7 @@ export const RoomPacket: Packet<[ string ]> = {
             if (key === "map") {
                 value = value.toUpperCase();
 
-                if (!GameMaps.some(m => m.id === value) || client.room.settings.map === value) throw new PacketError("INVALID_ARG");
+                if (!GameMaps[value] || client.room.settings.map === value) throw new PacketError("INVALID_ARG");
                 client.room.settings.map = value;
 
             /** Maximum players */

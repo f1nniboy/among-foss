@@ -19,7 +19,7 @@ export const TaskPacket: Packet<[ string ]> = {
     ],
 
     handler: async ({ client, data: [ name ] }) => {
-        if (!client.room!.map.task(name)) throw new PacketError("INVALID_ARG");
+        if (!client.room!.map!.task(name)) throw new PacketError("INVALID_ARG");
         await client.completeTask(name);
     }
 }

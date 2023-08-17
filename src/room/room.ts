@@ -1,9 +1,9 @@
 import { DiscussionReason, DiscussionResult } from "../packet/types/discussion.ts";
 import { PacketBroadcastOptions } from "../packet/mod.ts";
-import { LocationName } from "../game/location.ts";
 import { Client, ClientRole } from "../client.ts";
-import { GameMap, MapName } from "../game/map.ts";
 import { PacketError } from "../packet/error.ts";
+import { LocationID } from "../game/location.ts";
+import { GameMap, MapID } from "../game/map.ts";
 import { GameMaps } from "../game/maps/mod.ts";
 import { Logger } from "../utils/logger.ts";
 import { server } from "../server.ts";
@@ -71,7 +71,7 @@ interface RoomSettings {
     discussions: number;
 
     /** Map to play on */
-    map: MapName;
+    map: MapID;
 }
 
 interface RoomTemporaryData {
@@ -79,7 +79,7 @@ interface RoomTemporaryData {
     lastDiscussion: number | null;
 
     /** Corpses in the map; stored in a separate object to keep corpses of people who left */
-    corpses: Record<string, LocationName>;
+    corpses: Record<string, LocationID>;
 
     /* The current impostor */
     impostor: Client | null;
@@ -110,7 +110,7 @@ export class Room {
     public code: string;
 
     /** Map of the room */
-    public map: GameMap;
+    public map: GameMap | null;
 
     /** Temporary data */
     public temp: RoomTemporaryData;
@@ -120,7 +120,7 @@ export class Room {
 
     constructor({ host, visibility, code }: Pick<Room, "host" | "visibility" | "code">) {
         this.state = RoomState.Lobby;
-        this.map = GameMaps[0];
+        this.map = null;
 
         this.temp = {
             lastDiscussion: null, skips: 0, corpses: {}, impostor: null
@@ -147,12 +147,12 @@ export class Room {
 
     /** Start the game. */
     public async startGame() {
-        if (this.state !== RoomState.Lobby) throw new PacketError("ALREADY_RUNNING");
+        if (this.state !== RoomState.Lobby) throw new PacketError("ALREADY_ACTIVE");
         if (server.clients.length < this.settings.minPlayers) throw new PacketError("NOT_ENOUGH_PLAYERS");
 
         /* Figure out which map to use. */
         await this.setMap(
-            GameMaps.find(m => m.id === this.settings.map)!
+            new GameMaps[this.settings.map]()
         );
 
         /* Lucky person to be the impostor */
@@ -163,7 +163,7 @@ export class Room {
             await client.setRole(impostorIndex === index ? ClientRole.Impostor : ClientRole.Crewmate);
             if (impostorIndex === index) this.temp.impostor = client;
 
-            await client.setLocation(this.map.defaultLocation, true);
+            await client.setLocation(this.map!.spawn, true);
             
             await client.assignTasks(this.settings.tasks);
             client.temp.remainingDiscussions = this.settings.discussions;
@@ -177,7 +177,7 @@ export class Room {
 
     /** Start the voting discussion. */
     public async startDiscussion(client: Client, reason: DiscussionReason) {
-        if (this.state === RoomState.Discussion || this.state === RoomState.Lobby || client.location !== this.map.defaultLocation) throw new PacketError("FORBIDDEN");
+        if (this.state === RoomState.Discussion || this.state === RoomState.Lobby || client.location !== this.map!.spawn) throw new PacketError("FORBIDDEN");
         if (client.temp.remainingDiscussions === 0) throw new PacketError("MEET_LIMIT");
 
         if (this.temp.lastDiscussion && this.temp.lastDiscussion + (this.settings.delays.discussion * 1000) > Date.now()) {
@@ -283,6 +283,8 @@ export class Room {
         this.temp = {
             lastDiscussion: null, skips: 0, corpses: {}, impostor: null
         };
+        
+        this.map = null;
 
         for (const client of this.clients) {
             client.clean();
@@ -295,9 +297,14 @@ export class Room {
         Logger.info(`Room ${colors.bold(this.name)} has ended.`);
     }
 
-    /** Update the map of the game. */
+    /**
+     * Update the map of the game.
+     * 
+     * A new instance of the map is created each, in case we want to store temporary data
+     * or sabotages in the future. This hopefully isn't a big memory hit.
+     */
     public async setMap(map: GameMap) {
-        const data = this.map.serialize();
+        const data = map.serialize();
 
         for (const [ key, value ] of data) {
             await this.broadcast({
@@ -359,8 +366,8 @@ export class Room {
     }
 
     /** Notify other clients when a client joins or leaves. */
-    public async notify(client: Client, type: RoomNotifyType, clients?: Client[]) {
-        await this.broadcast({
+    public notify(client: Client, type: RoomNotifyType, clients?: Client[]) {
+        return this.broadcast({
             client, clients, name: type, args: client.name
         });
     }
@@ -370,8 +377,9 @@ export class Room {
         this.host = this.clients[0];
     }
 
-    public async pushListData(type: RoomDataType = RoomDataType.Update, clients?: Client[]) {
-        if (this.public) await server.broadcast({
+    /** Send updates about the room to all "lurkers", or the specified clients. */
+    public pushListData(type: RoomDataType = RoomDataType.Update, clients?: Client[]) {
+        if (this.public) return server.broadcast({
             clients: clients ?? server.lurkers, ...this.data(type)
         });
     }
@@ -431,9 +439,7 @@ export class Room {
     }
 
     /** Generate a room code. */
-    public static code(): string {
-        const length = 6;
-
+    public static code(length = 6): string {
         const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
         let result = "";
 

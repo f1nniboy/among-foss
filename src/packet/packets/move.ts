@@ -18,7 +18,7 @@ export const MovePacket: Packet<[ string ]> = {
     ],
 
     handler: async ({ client, data: [ loc ] }) => {
-        if (!client.room!.map.location(loc)) throw new PacketError("INVALID_LOC");
+        if (!client.room!.map!.location(loc)) throw new PacketError("INVALID_LOC");
         if (client.hasCooldown("move")) throw new PacketError("COOL_DOWN");
 
         await client.setLocation(loc);

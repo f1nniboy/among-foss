@@ -3,7 +3,7 @@ import { type PacketSendOptions } from "./packet/mod.ts";
 import { DisconnectReason } from "./packet/types/disconnect.ts";
 import { TaskName, randomTasks } from "./game/task.ts";
 import { Room, RoomDataType, RoomNotifyType, RoomState } from "./room/room.ts";
-import { LocationName } from "./game/location.ts";
+import { LocationID } from "./game/location.ts";
 import { PacketError } from "./packet/error.ts";
 import { connToString } from "./utils/ip.ts";
 import { server } from "./server.ts";
@@ -28,7 +28,7 @@ interface ClientTemporaryData {
     remainingDiscussions: number;
 
     /** Tasks assigned to the client */
-    tasks: Record<`${LocationName}:${TaskName}`, boolean> | null;
+    tasks: Record<`${LocationID}:${TaskName}`, boolean> | null;
 
     /** Whether the client has voted already */
     voted: boolean;
@@ -54,7 +54,7 @@ export class Client {
     public role: ClientRole;
 
     /** Location of the client */
-    public location: LocationName;
+    public location: LocationID;
 
     /** Temporary data, used during the game */
     public temp: ClientTemporaryData;
@@ -88,7 +88,7 @@ export class Client {
     /** Join a room. */
     public async join(room: Room) {
         if (this.room !== null) throw new PacketError("ALREADY_IN_ROOM");
-        if (room.running) throw new PacketError("ALREADY_RUNNING");
+        if (room.running) throw new PacketError("ALREADY_ACTIVE");
 
         if (room.clients.length + 1 > room.settings.maxPlayers) {
             throw new PacketError("MAX_PLAYERS");
@@ -168,8 +168,8 @@ export class Client {
         if (this.temp.tasks[`${this.location}:${id}`] == undefined) throw new PacketError("INVALID_ARG");
 
         /* Corresponding task data */
-        const task = this.room!.map.task(id)!;
-        if (!task.locations.includes(this.location)) throw new PacketError("WRONG_LOC");
+        const task = this.room!.map!.task(id)!;
+        if (!task.loc.includes(this.location)) throw new PacketError("WRONG_LOC");
 
         this.temp.tasks[`${this.location}:${id}`] = true;
 
@@ -181,7 +181,7 @@ export class Client {
     public async assignTasks(amount: number) {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
 
-        this.temp.tasks = randomTasks(this.room.map.tasks, amount);
+        this.temp.tasks = randomTasks(this.room.map!.tasks, amount);
         await this.send({ name: "TASKS", args: this.tasks() });
     }
 
@@ -204,7 +204,7 @@ export class Client {
     }
 
     /** Change the location of the client. */
-    public async setLocation(location: LocationName, instant = false) {
+    public async setLocation(location: LocationID, instant = false) {
         if (this.room === null) throw new PacketError("NOT_IN_ROOM");
         if (!instant && this.location === location) throw new PacketError("ALREADY_LOC");
 
@@ -212,7 +212,7 @@ export class Client {
         const neighboring: boolean = instant
             || this.role === ClientRole.Spectator
             || this.location === location
-            || this.room.map.location(this.location)!.doors.includes(location);
+            || this.room.map!.location(this.location)!.doors.includes(location);
         
         if (!neighboring) throw new PacketError("INVALID_LOC");
 

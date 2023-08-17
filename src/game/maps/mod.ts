@@ -1,9 +1,8 @@
-import { type GameMap } from "../map.ts";
+import { MapID } from "../map.ts";
 
 /* All game maps */
-import { MiraHQMap } from "./mirahq.ts";
 import { SkeldMap } from "./skeld.ts";
 
-export const GameMaps: GameMap[] = [
-    new MiraHQMap(), new SkeldMap()
-]
+export const GameMaps: Record<MapID, typeof SkeldMap> = {
+    SKELD: SkeldMap
+}

@@ -9,7 +9,7 @@ type PacketErrorName =
     | "MISSING_ARG" | "INVALID_ARG"
 
     /** Game */
-    | "NOT_ENOUGH_PLAYERS" | "ALREADY_RUNNING" | "NOT_ACTIVE" | "DEAD"
+    | "NOT_ENOUGH_PLAYERS" | "ALREADY_ACTIVE" | "NOT_ACTIVE" | "DEAD"
 
     /** Location */
     | "INVALID_LOC" | "ALREADY_LOC"

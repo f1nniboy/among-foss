@@ -198,8 +198,7 @@ Calling it without a player name acts a vote to skip the discussion.
 | ----------- | ------------------------------------- |
 | `SERVER`    | Initial information about the server  |
 | `ERR`       | Error information, if a packet failed |
-| `ROOM`      | Information about the room            |
-| `ROOMS`     | Information about all public rooms    |
+| `ROOM`      | Information about rooms               |
 | `LOCATION`  | The client's location in the map      |
 | `TASKS`     | The client's assigned tasks           |
 | `STATE`     | State of the running game             |

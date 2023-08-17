@@ -33,9 +33,9 @@ The server sends errors to the client like this:
 | Name                 | Description                                                  |
 | -------------------- | ------------------------------------------------------------ |
 | `NOT_ENOUGH_PLAYERS` | There are not enough players in the lobby to start the game. |
-| `ALREADY_RUNNING`    | The game is already running.                                 |
+| `ALREADY_ACTIVE`     | The game is already running.                                 |
 | `NOT_ACTIVE`         | The game is not running.                                     |
-| `DEAD`               | The client cannot perform this action, as it is spectating.  |
+| `DEAD`               | The client cannot perform this action, as it is dead.        |
 
 ## Location
 | Name          | Description                                                          |
