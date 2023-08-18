@@ -39,7 +39,7 @@ export enum PacketRequirement {
     Alive
 }
 
-export interface Packet<Data extends Array<PacketParameterType> = Array<PacketParameterType>> {
+export interface Packet<Data extends Array<PacketParameterType> = []> {
     /** Name of the packet */
     name: PacketName;
 
@@ -56,13 +56,13 @@ export interface Packet<Data extends Array<PacketParameterType> = Array<PacketPa
     ack?: boolean;
 
     /** Parameters of the packet */
-    parameters?: PacketParameter[] | PacketParameter;
+    parameters?: PacketParameter[];
 
     /** Requirements of the packet */
     requirements?: PacketRequirement[];
 
     /** Handler of the packet */
-    handler: (data: PacketHandlerData<Data>) => Promise<PacketReply | void> | PacketReply | void;
+    handler: (data: PacketHandlerData<Data>) => Promise<PacketReply | PacketReply[] | void> | PacketReply | PacketReply[] | void;
 }
 
 interface PacketHandlerData<Data extends Array<PacketParameterType>> {

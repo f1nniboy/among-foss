@@ -1,5 +1,5 @@
+import { type Packet, PacketRequirement } from "../mod.ts";
 import { DiscussionReason } from "../types/discussion.ts";
-import { Packet, PacketRequirement } from "../mod.ts";
 
 export const MeetPacket: Packet<[ string ]> = {
     name: "MEET",

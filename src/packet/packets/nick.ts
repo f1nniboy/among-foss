@@ -1,6 +1,6 @@
 import { PacketError } from "../error.ts";
 import { server } from "../../server.ts";
-import { Packet } from "../mod.ts";
+import { type Packet } from "../mod.ts";
 
 export const NickPacket: Packet<[ string ]> = {
     name: "NICK",

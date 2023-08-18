@@ -169,11 +169,7 @@ class Server {
 
 		/** Corresponding packet, if available */
 		const packet = Packets.find(p => p.name.toLowerCase() === name.toLowerCase()) ?? null;
-
-		if (!packet) {
-			Logger.warn("Client", colors.bold(`#${client.id}`), "sent an invalid packet.");
-			return client.send({ name: "ERR", args: "INVALID_CMD" });
-		}
+		if (!packet) return client.send({ name: "ERR", args: "INVALID_CMD" });
 
 		/* If the client hasn't chosen a name yet, ... */
 		if (!client.active && !packet.always) {
@@ -215,7 +211,15 @@ class Server {
 				client, args: parts, data: parseParameters(packet, parts) as Array<PacketParameterType>
 			});
 
-			if (reply) await client.send(reply);
+			if (reply) {
+				if (Array.isArray(reply)) {
+					for (const r of reply) {
+						await client.send(r);
+					}
+				} else {
+					await client.send(reply);
+				}
+			}
 
 			if (packet.ack) await client.send({ name: "OK", args: [ name, ...parts ] });
 			if (packet.cooldown) client.setCooldown(packet.name, packet.cooldown);

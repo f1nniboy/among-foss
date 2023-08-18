@@ -1,4 +1,4 @@
-import { Packet, PacketRequirement } from "../mod.ts";
+import { type Packet, PacketRequirement } from "../mod.ts";
 
 export const VentPacket: Packet<[ string ]> = {
     name: "VENT",

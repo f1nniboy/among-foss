@@ -1,4 +1,4 @@
-import { Packet } from "../mod.ts";
+import { type Packet } from "../mod.ts";
 
 export const PingPacket: Packet<[ number ]> = {
     name: "PING",

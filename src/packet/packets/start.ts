@@ -1,4 +1,4 @@
-import { Packet, PacketRequirement } from "../mod.ts";
+import { type Packet, PacketRequirement } from "../mod.ts";
 
 export const StartPacket: Packet = {
     name: "START",

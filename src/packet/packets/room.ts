@@ -2,7 +2,7 @@ import { RoomDataType, RoomVisibility } from "../../room/room.ts";
 import { GameMaps } from "../../game/maps/mod.ts";
 import { PacketError } from "../error.ts";
 import { server } from "../../server.ts";
-import { Packet } from "../mod.ts";
+import { type Packet } from "../mod.ts";
 
 export const RoomPacket: Packet<[ string ]> = {
     name: "ROOM",

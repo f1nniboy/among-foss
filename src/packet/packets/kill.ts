@@ -1,4 +1,4 @@
-import { Packet, PacketRequirement } from "../mod.ts";
+import { type Packet, PacketRequirement } from "../mod.ts";
 import { PacketError } from "../error.ts";
 
 export const KillPacket: Packet<[ string ]> = {
@@ -12,7 +12,7 @@ export const KillPacket: Packet<[ string ]> = {
 
     parameters: [
         {
-            name: "task",
+            name: "player",
             description: "Which task to complete",
             type: "string"
         }

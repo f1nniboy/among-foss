@@ -1,4 +1,4 @@
-import { Packet, PacketRequirement } from "../mod.ts";
+import { type Packet, PacketRequirement } from "../mod.ts";
 import { PacketError } from "../error.ts";
 
 export const VotePacket: Packet<[ string ]> = {
@@ -12,7 +12,7 @@ export const VotePacket: Packet<[ string ]> = {
 
     parameters: [
         {
-            name: "target",
+            name: "player",
             description: "Which user to vote for",
             type: "string",
             optional: true

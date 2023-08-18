@@ -1,4 +1,4 @@
-import { Packet, PacketRequirement } from "../mod.ts";
+import { type Packet, PacketRequirement } from "../mod.ts";
 
 export const ChatPacket: Packet = {
     name: "CHAT",
@@ -8,11 +8,13 @@ export const ChatPacket: Packet = {
         PacketRequirement.InRoom
     ],
 
-    parameters: {
-        name: "message",
-        description: "The chat message to send",
-        type: "string"
-    },
+    parameters: [
+        {
+            name: "message",
+            description: "The chat message to send",
+            type: "string"
+        }
+    ],
 
     handler: async ({ client, args }) => {
         const message: string = args.join(" ").trim();
